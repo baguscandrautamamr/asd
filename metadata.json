@@ -1,0 +1,6 @@
+{
+  "name": "Aspirating Smoke Detector Calculator & NFPA 72 Designer",
+  "description": "Aspirating Smoke Detector (ASD) calculation engine for optimal sampling holes and pipe length according to NFPA 72, with real-time floor plan visualization, project management, technical PDF report export, and collaborative cloud sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
