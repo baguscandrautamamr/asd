@@ -66,8 +66,10 @@ export const NumberField: React.FC<NumberFieldProps> = ({
   const isAuto = autoValue !== undefined && value === autoValue && !focused;
 
   return (
-    <div>
-      <label className="block text-xs font-semibold text-ink-2 mb-1 leading-tight">{label}</label>
+    // field-cell spans the parent's three row tracks so label, control and
+    // helper text line up with every other field on the row.
+    <div className="field-cell">
+      <label className="field-label">{label}</label>
 
       <div className="flex items-stretch gap-0.5">
         <button
@@ -132,8 +134,8 @@ export const NumberField: React.FC<NumberFieldProps> = ({
         </button>
       </div>
 
-      <p className="text-2xs text-ink-3 mt-1 leading-snug">
-        <span className="font-mono text-ink-3/80">
+      <p className="field-help">
+        <span className="font-mono">
           {min}–{max}
         </span>
         {help ? ` · ${help}` : ''}

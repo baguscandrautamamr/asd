@@ -660,7 +660,12 @@ function Workspace() {
             </div>
 
             <div className={activeTab === 'visualizer' ? 'h-[560px]' : 'hidden'}>
-              <FloorPlanCanvas ref={floorPlanRef} params={params} results={results} />
+              <FloorPlanCanvas
+                ref={floorPlanRef}
+                params={params}
+                results={results}
+                onUpdateParams={(partial) => setParams((prev) => ({ ...prev, ...partial }))}
+              />
             </div>
 
             {activeTab === 'calculation' && <CalculationTab results={results} params={params} />}

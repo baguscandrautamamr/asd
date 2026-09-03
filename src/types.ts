@@ -58,6 +58,13 @@ export interface CalculationParams {
   pipeMaterial: string;
   capillaryDropEnabled: boolean;
   capillaryTubeLength: number; // meters
+  /**
+   * Hand-drawn sampling runs, keyed by pipe index. Each polyline covers the
+   * part of the branch that carries sampling holes; the manifold back to the
+   * detector is still routed automatically. Absent keys fall back to the
+   * automatic layout.
+   */
+  customRoutes?: Record<string, Point2D[]>;
 }
 
 export interface HoleScheduleItem {
@@ -74,14 +81,29 @@ export interface HoleScheduleItem {
   coverageRadiusM: number;
 }
 
+export interface Point2D {
+  x: number;
+  y: number;
+}
+
 export interface PipeBranchData {
   pipeIndex: number;
   pipeName: string;
   lengthMeters: number;
   holeCount: number;
-  startPoint: { x: number; y: number };
-  endPoint: { x: number; y: number };
-  segments: { from: { x: number; y: number }; to: { x: number; y: number } }[];
+  startPoint: Point2D;
+  endPoint: Point2D;
+  /**
+   * The complete orthogonal route, detector to end cap, as a polyline. Both the
+   * 2D plan and the 3D model draw from this single source so the picture can
+   * never disagree with the length the calculator reported.
+   */
+  routePoints: Point2D[];
+  /** Index into routePoints where the sampling run begins (holes start here). */
+  runStartIndex: number;
+  /** True when the operator drew this branch by hand. */
+  isCustomRoute: boolean;
+  segments: { from: Point2D; to: Point2D }[];
   holes: HoleScheduleItem[];
 }
 

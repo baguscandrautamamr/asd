@@ -8,6 +8,61 @@ import {
   BOMItem,
 } from '../types';
 
+type Pt = { x: number; y: number };
+
+const EPS = 1e-6;
+
+/** Total length of a polyline in metres. */
+function polylineLength(points: Pt[]): number {
+  let total = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    total += Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
+  }
+  return total;
+}
+
+/** Point sitting `distance` metres along a polyline. */
+function pointAlong(points: Pt[], distance: number): Pt {
+  if (points.length === 0) return { x: 0, y: 0 };
+  let remaining = Math.max(0, distance);
+  for (let i = 0; i < points.length - 1; i++) {
+    const segment = Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
+    if (remaining <= segment || i === points.length - 2) {
+      const ratio = segment < EPS ? 0 : Math.min(1, remaining / segment);
+      return {
+        x: points[i].x + (points[i + 1].x - points[i].x) * ratio,
+        y: points[i].y + (points[i + 1].y - points[i].y) * ratio,
+      };
+    }
+    remaining -= segment;
+  }
+  return points[points.length - 1];
+}
+
+/**
+ * Orthogonal manifold from the detector to where a branch begins.
+ *
+ * Sampling pipe is installed along the ceiling grid with 90 degree sweep
+ * elbows, never diagonally across a room, so the header first runs along the
+ * wall the detector is mounted on and then turns into the room. This also makes
+ * the drawn route agree with the Manhattan length the schedule reports.
+ */
+function manifoldRoute(detector: Pt, wall: string, start: Pt): Pt[] {
+  const onVerticalWall = wall === 'west' || wall === 'east';
+  const corner: Pt = onVerticalWall
+    ? { x: detector.x, y: start.y }
+    : { x: start.x, y: detector.y };
+
+  const points: Pt[] = [detector];
+  const push = (p: Pt) => {
+    const last = points[points.length - 1];
+    if (Math.abs(p.x - last.x) > EPS || Math.abs(p.y - last.y) > EPS) points.push(p);
+  };
+  push(corner);
+  push(start);
+  return points;
+}
+
 /**
  * Calculates NFPA 72 compliant ASD pipe network parameters, sampling hole schedule,
  * hydraulic flow estimation, and BoQ materials.
@@ -225,30 +280,47 @@ export function calculateASD(params: CalculationParams): CalculationResults {
       branchLateralPos = margin + pIdx * (crossWidth / pipeCount);
     }
 
-    // Branch start and end in room coordinates
-    let startX: number;
-    let startY: number;
-    let endX: number;
-    let endY: number;
-
     const wallOffset = Math.min(1.5, Math.max(0.6, effectiveHoleSpacingM / 2));
 
-    if (isLengthwise) {
-      startX = wallOffset;
-      endX = params.length - wallOffset;
-      startY = branchLateralPos;
-      endY = branchLateralPos;
+    // A hand-drawn run replaces the automatic one; the manifold back to the
+    // detector is still routed for the operator.
+    const drawn = params.customRoutes?.[String(pIdx)];
+    const isCustomRoute = Array.isArray(drawn) && drawn.length >= 2;
+
+    let runPoints: Pt[];
+    if (isCustomRoute) {
+      runPoints = drawn.map((point) => ({
+        x: Math.min(params.length, Math.max(0, point.x)),
+        y: Math.min(params.width, Math.max(0, point.y)),
+      }));
+    } else if (isLengthwise) {
+      runPoints = [
+        { x: wallOffset, y: branchLateralPos },
+        { x: params.length - wallOffset, y: branchLateralPos },
+      ];
     } else {
-      startX = branchLateralPos;
-      endX = branchLateralPos;
-      startY = wallOffset;
-      endY = params.width - wallOffset;
+      runPoints = [
+        { x: branchLateralPos, y: wallOffset },
+        { x: branchLateralPos, y: params.width - wallOffset },
+      ];
     }
 
-    const branchLinearRunM = Math.abs(isLengthwise ? endX - startX : endY - startY);
+    const startPoint = runPoints[0];
+    const endPoint = runPoints[runPoints.length - 1];
 
-    // Manifold header length from detector to branch entry
-    const headerManifoldM = Math.round((Math.abs(detX - startX) + Math.abs(detY - startY)) * 10) / 10;
+    const manifoldPoints = manifoldRoute(
+      { x: detX, y: detY },
+      params.detectorLocation?.wall || 'west',
+      startPoint
+    );
+
+    // The full route is the manifold followed by the sampling run; the shared
+    // vertex is not repeated.
+    const routePoints: Pt[] = [...manifoldPoints, ...runPoints.slice(1)];
+    const runStartIndex = manifoldPoints.length - 1;
+
+    const branchLinearRunM = polylineLength(runPoints);
+    const headerManifoldM = Math.round(polylineLength(manifoldPoints) * 10) / 10;
     const branchTotalM = Math.round((headerManifoldM + branchLinearRunM) * 10) / 10;
 
     totalPipeLengthM += branchTotalM;
@@ -258,14 +330,15 @@ export function calculateASD(params: CalculationParams): CalculationResults {
 
     // Calculate holes for this pipe branch
     const holesOnBranch: HoleScheduleItem[] = [];
-    const availableLength = branchLinearRunM;
     const holeStep = effectiveHoleSpacingM;
-    const holeCount = Math.max(2, Math.floor(availableLength / holeStep) + 1);
+    const holeCount = Math.max(2, Math.floor(branchLinearRunM / holeStep) + 1);
 
     for (let hIdx = 0; hIdx < holeCount; hIdx++) {
       const frac = holeCount > 1 ? hIdx / (holeCount - 1) : 0.5;
-      const hx = isLengthwise ? startX + frac * (endX - startX) : startX;
-      const hy = isLengthwise ? startY : startY + frac * (endY - startY);
+      // Holes ride the drawn run, so they follow every corner the operator made.
+      const position = pointAlong(runPoints, frac * branchLinearRunM);
+      const hx = position.x;
+      const hy = position.y;
 
       const distanceAlongPipe = Math.round((headerManifoldM + frac * branchLinearRunM) * 10) / 10;
 
@@ -318,19 +391,21 @@ export function calculateASD(params: CalculationParams): CalculationResults {
       allHoles.push(holeItem);
     }
 
-    // Segments: Manifold header line from detector to branch start, then branch run
-    const segments = [
-      { from: { x: detX, y: detY }, to: { x: startX, y: startY } },
-      { from: { x: startX, y: startY }, to: { x: endX, y: endY } },
-    ];
+    const segments = routePoints.slice(0, -1).map((from, index) => ({
+      from,
+      to: routePoints[index + 1],
+    }));
 
     branches.push({
       pipeIndex: pIdx,
       pipeName,
       lengthMeters: branchTotalM,
       holeCount: holesOnBranch.length,
-      startPoint: { x: startX, y: startY },
-      endPoint: { x: endX, y: endY },
+      startPoint,
+      endPoint,
+      routePoints,
+      runStartIndex,
+      isCustomRoute,
       segments,
       holes: holesOnBranch,
     });
@@ -338,11 +413,7 @@ export function calculateASD(params: CalculationParams): CalculationResults {
 
   const holesPerBranch = branches[0]?.holeCount ?? 0;
   const branchRunM = branches[0]
-    ? Math.round(
-        (branches[0].lengthMeters -
-          (Math.abs(detX - branches[0].startPoint.x) + Math.abs(detY - branches[0].startPoint.y))) *
-          10
-      ) / 10
+    ? Math.round(polylineLength(branches[0].routePoints.slice(branches[0].runStartIndex)) * 10) / 10
     : 0;
 
   step({

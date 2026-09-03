@@ -654,12 +654,12 @@ export const Room3DView = forwardRef<Room3DViewRef, Room3DViewProps>(
       );
 
       results.branches.forEach((branch) => {
-        // Detector -> riser up to ceiling -> manifold -> branch run.
+        // Riser off the detector, then the orthogonal route the calculator
+        // produced. Drawing from routePoints keeps the model identical to the
+        // 2D plan and to the pipe length in the schedule.
         const path = [
           v(detector.x, detector.y, detectorHeight + 0.35),
-          v(detector.x, detector.y, pipeY),
-          v(branch.startPoint.x, branch.startPoint.y, pipeY),
-          v(branch.endPoint.x, branch.endPoint.y, pipeY),
+          ...branch.routePoints.map((point) => v(point.x, point.y, pipeY)),
         ];
         model.add(buildPipeRun(path, 0.075, pipeMaterial));
 
