@@ -37,7 +37,17 @@ function pdfSafe(text: string): string {
     .replace(/·/g, '-')
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
-    .replace(/…/g, '...');
+    .replace(/…/g, '...')
+    // jsPDF's core fonts stop at cp1252, so the maths symbols the derivation
+    // uses have to be spelled out rather than dropped.
+    .replace(/√/g, 'sqrt')
+    .replace(/Σ/g, 'sum')
+    .replace(/Δ/g, ' delta ')
+    .replace(/ρ/g, 'rho')
+    .replace(/π/g, 'pi')
+    .replace(/[µμ]/g, 'u')
+    .replace(/±/g, '+/-')
+    .replace(/ {2,}/g, ' ');
 }
 
 export function generateTechnicalReportPDF(
@@ -331,8 +341,6 @@ export function generateTechnicalReportPDF(
     y += 6.5;
   });
 
-  renderFooter(1, 2);
-
   // ============================== PAGE 2 ==============================
   doc.addPage();
   renderHeader(t('pdf.page2Title'));
@@ -469,7 +477,146 @@ export function generateTechnicalReportPDF(
   signColumn(t('pdf.signReviewer'), t('pdf.signReviewerRole'), margin + colW + 6);
   signColumn(t('pdf.signClient'), project.clientName, margin + colW * 2 + 6);
 
-  renderFooter(2, 2);
+  // ============================== PAGE 3 ==============================
+  // The derivation: every published number traced back to its formula, so the
+  // client can re-check the design without opening the app.
+  doc.addPage();
+  renderHeader(t('pdf.page3Title'));
+  y = 35;
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  write(t('pdf.section5'), margin, y);
+  y += 5;
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.splitTextToSize(pdfSafe(t('calc.subtitle')), contentWidth).forEach((line: string) => {
+    doc.text(line, margin, y);
+    y += 3.6;
+  });
+  y += 3;
+
+  const colStep = margin + 3;
+  const colFormula = margin + 58;
+  const colSub = margin + 104;
+  const colResult = margin + 152;
+
+  const drawCalcHeader = () => {
+    doc.setFillColor(30, 41, 59);
+    doc.rect(margin, y, contentWidth, 6, 'F');
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    write(t('pdf.calcStep'), colStep, y + 4.2);
+    write(t('pdf.calcFormula'), colFormula, y + 4.2);
+    write(t('pdf.calcSub'), colSub, y + 4.2);
+    write(t('pdf.calcResult'), colResult, y + 4.2);
+    y += 6;
+  };
+
+  drawCalcHeader();
+
+  let lastGroup = '';
+  let stepNumber = 0;
+
+  results.derivation.forEach((entry) => {
+    // Keep a group heading with at least one row beneath it.
+    if (y > pageHeight - 30) {
+      doc.addPage();
+      renderHeader(t('pdf.page3Title'));
+      y = 35;
+      drawCalcHeader();
+      lastGroup = '';
+    }
+
+    if (entry.group !== lastGroup) {
+      lastGroup = entry.group;
+      doc.setFillColor(233, 240, 226);
+      doc.rect(margin, y, contentWidth, 5.5, 'F');
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(59, 99, 24);
+      write(t(`calc.group.${entry.group}` as TranslationKey), colStep, y + 3.9);
+      y += 5.5;
+    }
+
+    stepNumber += 1;
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    const title: string[] = doc.splitTextToSize(
+      pdfSafe(`${stepNumber}. ${t(entry.titleKey)}`),
+      52
+    );
+
+    doc.setFont('courier', 'normal');
+    const formula: string[] = doc.splitTextToSize(pdfSafe(entry.formula), 44);
+    const substitution: string[] = doc.splitTextToSize(pdfSafe(entry.substitution), 46);
+    const result: string[] = doc.splitTextToSize(pdfSafe(entry.result), 30);
+
+    const reference = entry.reference
+      ? (doc.splitTextToSize(pdfSafe(entry.reference), 52) as string[])
+      : [];
+    const bodyLines = Math.max(title.length, formula.length, substitution.length, result.length);
+    const rowHeight = Math.max(6, bodyLines * 3.4 + reference.length * 2.8 + 2.6);
+
+    const shade = stepNumber % 2 === 0 ? 248 : 255;
+    doc.setFillColor(shade, shade, shade);
+    doc.rect(margin, y, contentWidth, rowHeight, 'F');
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    title.forEach((line, index) => doc.text(line, colStep, y + 4 + index * 3.4));
+
+    doc.setFont('courier', 'normal');
+    doc.setTextColor(71, 85, 105);
+    formula.forEach((line, index) => doc.text(line, colFormula, y + 4 + index * 3.4));
+    substitution.forEach((line, index) => doc.text(line, colSub, y + 4 + index * 3.4));
+
+    doc.setFont('courier', 'bold');
+    doc.setTextColor(59, 99, 24);
+    result.forEach((line, index) => doc.text(line, colResult, y + 4 + index * 3.4));
+
+    if (reference.length > 0) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6);
+      doc.setTextColor(148, 163, 184);
+      reference.forEach((line, index) =>
+        doc.text(line, colStep, y + 4 + bodyLines * 3.4 + index * 2.8)
+      );
+    }
+
+    y += rowHeight;
+  });
+
+  y += 5;
+  if (y > pageHeight - 26) {
+    doc.addPage();
+    renderHeader(t('pdf.page3Title'));
+    y = 35;
+  }
+
+  doc.setDrawColor(203, 213, 225);
+  doc.setFillColor(253, 246, 231);
+  doc.roundedRect(margin, y, contentWidth, 12, 1.5, 1.5, 'FD');
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(120, 68, 8);
+  doc.splitTextToSize(pdfSafe(t('pdf.calcDisclaimer')), contentWidth - 8).forEach(
+    (line: string, index: number) => {
+      doc.text(line, margin + 4, y + 5 + index * 3.4);
+    }
+  );
+
+  // Footers last, so every page can carry the real page count.
+  const totalPages = doc.getNumberOfPages();
+  for (let page = 1; page <= totalPages; page++) {
+    doc.setPage(page);
+    renderFooter(page, totalPages);
+  }
 
   const fileName = `ASD_Report_${project.code}_${scenario.revision.replace(/\s+/g, '_')}.pdf`;
   doc.save(fileName);

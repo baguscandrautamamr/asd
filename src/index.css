@@ -1,93 +1,75 @@
 @import "tailwindcss";
 
-/*
- * Dual-mode theming.
- * Tailwind v4 emits utilities that reference the CSS variables declared in
- * @theme, so overriding those variables under .dark is enough to repaint the
- * whole application without duplicating a single utility class.
- */
-@custom-variant dark (&:where(.dark, .dark *));
+/* ===========================================================================
+ * BRAND PALETTE — samakan dengan Grounding Configurator.
+ * Kalau hijaunya perlu digeser, cukup ubah empat nilai di bawah ini; seluruh
+ * aplikasi (UI, denah 2D, dan scene 3D) ikut berubah.
+ * ------------------------------------------------------------------------ */
+:root {
+  --brand-solid: #4f8221; /* tombol & teks hijau di atas putih (kontras AA) */
+  --brand-bright: #8cbf3f; /* pill aktif, garis aksen, badge nomor */
+  --brand-deep: #3b6318; /* hover / tekan */
+  --brand-wash: #f2f8e9; /* latar badge & baris tersorot */
+  --shell-dark: #0f1720; /* header bar */
+}
 
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
+  /* Skala teks diperkecil ~10% dari bawaan Tailwind supaya lebih padat tapi
+     tetap terbaca — ini satu-satunya tempat ukuran huruf ditentukan. */
+  --text-2xs: 0.625rem; /* 10px */
+  --text-xs: 0.6875rem; /* 11px */
+  --text-sm: 0.8125rem; /* 13px */
+  --text-base: 0.875rem; /* 14px */
+  --text-lg: 1rem; /* 16px */
+  --text-xl: 1.125rem; /* 18px */
+  --text-2xl: 1.375rem; /* 22px */
+
+  /* Basis spasi ikut dirapatkan supaya proporsinya tetap seimbang. */
+  --spacing: 0.23rem;
+
   /* Surfaces */
-  --color-canvas: #e9edf4;
+  --color-canvas: #f4f6f7;
   --color-surface: #ffffff;
-  --color-surface-2: #f5f8fc;
-  --color-surface-3: #e7ecf4;
+  --color-surface-2: #f8faf8;
+  --color-surface-3: #eef2ee;
 
   /* Lines */
-  --color-line: #dae1ec;
-  --color-line-2: #c2ccdc;
+  --color-line: #e4e8e4;
+  --color-line-2: #ccd4cc;
 
   /* Text */
-  --color-ink: #0c1424;
-  --color-ink-2: #45526a;
-  --color-ink-3: #7a889f;
+  --color-ink: #14201a;
+  --color-ink-2: #4a5852;
+  --color-ink-3: #7c8a83;
 
-  /* Brand (fire protection red) */
-  --color-brand: #e11d48;
-  --color-brand-2: #f43f5e;
-  --color-brand-ink: #9f1239;
-  --color-brand-wash: #fff1f3;
+  /* Brand */
+  --color-brand: var(--brand-solid);
+  --color-brand-2: var(--brand-bright);
+  --color-brand-ink: var(--brand-deep);
+  --color-brand-wash: var(--brand-wash);
+  --color-shell: var(--shell-dark);
 
   /* Status */
-  --color-ok: #047857;
-  --color-ok-wash: #ecfdf5;
-  --color-warn: #b45309;
-  --color-warn-wash: #fffbeb;
-  --color-bad: #be123c;
-  --color-bad-wash: #fff1f2;
-  --color-info: #0369a1;
-  --color-info-wash: #f0f9ff;
+  --color-ok: #2f7d32;
+  --color-ok-wash: #eef7ed;
+  --color-warn: #a15c07;
+  --color-warn-wash: #fdf6e7;
+  --color-bad: #b3261e;
+  --color-bad-wash: #fdeeed;
+  --color-info: #1d6fa5;
+  --color-info-wash: #eef6fb;
 
-  /* Scene colors consumed by the Three.js viewport */
-  --color-scene-bg: #dfe6f0;
-  --color-scene-floor: #cbd5e4;
-  --color-scene-grid: #94a3b8;
-}
-
-.dark {
-  --color-canvas: #060a12;
-  --color-surface: #0d1424;
-  --color-surface-2: #131c2e;
-  --color-surface-3: #1a2439;
-
-  --color-line: #223049;
-  --color-line-2: #32405c;
-
-  --color-ink: #edf2fb;
-  --color-ink-2: #a4b2ca;
-  --color-ink-3: #6c7c99;
-
-  --color-brand: #f43f5e;
-  --color-brand-2: #fb7185;
-  --color-brand-ink: #fda4af;
-  --color-brand-wash: #2a0d18;
-
-  --color-ok: #34d399;
-  --color-ok-wash: #062a20;
-  --color-warn: #fbbf24;
-  --color-warn-wash: #2c1e04;
-  --color-bad: #fb7185;
-  --color-bad-wash: #2d0d16;
-  --color-info: #38bdf8;
-  --color-info-wash: #04222f;
-
-  --color-scene-bg: #060a12;
-  --color-scene-floor: #0f1728;
-  --color-scene-grid: #253349;
+  /* Merah fire-alarm dipertahankan untuk pipa & unit ASD karena itu warna
+     material di lapangan (CPVC merah), bukan warna brand. */
+  --color-fire: #d5352f;
+  --color-fire-wash: #fdeeed;
 }
 
 html {
   color-scheme: light;
-}
-
-.dark html,
-html.dark {
-  color-scheme: dark;
 }
 
 body {
@@ -96,106 +78,104 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ---------------------------------------------------------------------------
- * Depth system. The app is a 3D design tool, so the chrome carries real
- * elevation instead of flat borders: a soft ambient shadow, a tight contact
- * shadow, and a 1px top highlight that reads as a bevel under the light.
- * ------------------------------------------------------------------------- */
 @layer components {
   .surface-card {
     background-color: var(--color-surface);
     border: 1px solid var(--color-line);
-    border-radius: 1rem;
+    border-radius: 0.75rem;
     box-shadow:
-      0 1px 1px rgb(15 23 42 / 0.04),
-      0 8px 24px -12px rgb(15 23 42 / 0.18);
+      0 1px 1px rgb(20 32 26 / 0.03),
+      0 6px 18px -12px rgb(20 32 26 / 0.16);
   }
 
-  .dark .surface-card {
-    box-shadow:
-      0 1px 0 0 rgb(255 255 255 / 0.04) inset,
-      0 18px 40px -24px rgb(0 0 0 / 0.9);
-  }
-
-  .surface-raised {
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--color-surface) 100%, white 6%),
-      var(--color-surface)
-    );
-  }
-
-  .dark .surface-raised {
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--color-surface) 92%, white 8%),
-      var(--color-surface)
-    );
-  }
-
-  /* Glass chrome used by floating toolbars over the 3D viewport. */
+  /* Chrome kaca di atas viewport 3D / denah 2D. */
   .glass {
-    background-color: color-mix(in srgb, var(--color-surface) 82%, transparent);
-    backdrop-filter: blur(14px) saturate(1.3);
-    border: 1px solid color-mix(in srgb, var(--color-line-2) 70%, transparent);
+    background-color: color-mix(in srgb, var(--color-surface) 88%, transparent);
+    backdrop-filter: blur(12px) saturate(1.2);
+    border: 1px solid var(--color-line);
   }
 
-  /* Lifts a card toward the viewer on hover — the tactile cue that this is a
-     spatial tool, not a form. */
   .lift {
-    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 0.22s ease;
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 0.2s ease;
   }
 
   .lift:hover {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
     box-shadow:
-      0 2px 2px rgb(15 23 42 / 0.05),
-      0 18px 36px -16px rgb(15 23 42 / 0.32);
-  }
-
-  .dark .lift:hover {
-    box-shadow:
-      0 1px 0 0 rgb(255 255 255 / 0.06) inset,
-      0 26px 50px -22px rgb(0 0 0 / 1);
+      0 2px 2px rgb(20 32 26 / 0.04),
+      0 14px 28px -16px rgb(20 32 26 / 0.28);
   }
 
   .field {
     width: 100%;
-    border-radius: 0.6rem;
+    border-radius: 0.5rem;
     border: 1px solid var(--color-line-2);
-    background-color: var(--color-surface-2);
+    background-color: var(--color-surface);
     color: var(--color-ink);
     padding: 0.4rem 0.6rem;
-    font-size: 0.8125rem;
+    font-size: var(--text-sm);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
 
   .field:focus {
     outline: none;
-    border-color: var(--color-brand);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 22%, transparent);
+    border-color: var(--brand-solid);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-bright) 40%, transparent);
+  }
+
+  .field:disabled {
+    background-color: var(--color-surface-3);
+    color: var(--color-ink-3);
   }
 
   .field option {
     background-color: var(--color-surface);
     color: var(--color-ink);
   }
+
+  /* Pill toggle seperti ID/EN dan Metric/Imperial di Grounding Configurator. */
+  .pill-group {
+    display: inline-flex;
+    padding: 0.14rem;
+    border-radius: 999px;
+    background-color: rgb(255 255 255 / 0.1);
+    gap: 0.14rem;
+  }
+
+  .pill {
+    padding: 0.22rem 0.7rem;
+    border-radius: 999px;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: 1.4;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  /* Badge nomor langkah pada panel parameter. */
+  .step-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 0.4rem;
+    background-color: var(--brand-solid);
+    color: #ffffff;
+    font-size: var(--text-xs);
+    font-weight: 800;
+    flex-shrink: 0;
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateX(12px); }
+  from { opacity: 0; transform: translateX(10px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.2s ease-out forwards;
-}
-
-.animate-slideIn {
-  animation: slideIn 0.25s ease-out forwards;
-}
+.animate-fadeIn { animation: fadeIn 0.18s ease-out forwards; }
+.animate-slideIn { animation: slideIn 0.22s ease-out forwards; }
