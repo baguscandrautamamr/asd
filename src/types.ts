@@ -114,6 +114,34 @@ export interface BOMItem {
   remarkVars?: Record<string, string | number>;
 }
 
+/**
+ * One traceable line of the derivation: the symbolic formula, the same formula
+ * with this project's numbers substituted, and the resulting value. Emitted by
+ * the calculator itself so the explanation can never drift from the result.
+ */
+export type CalculationGroup =
+  | 'geometry'
+  | 'spacing'
+  | 'layout'
+  | 'hydraulic'
+  | 'transport';
+
+export interface CalculationStep {
+  id: string;
+  group: CalculationGroup;
+  titleKey: TranslationKey;
+  /** Standard clause, printed verbatim in both languages. */
+  reference?: string;
+  /** Symbolic form, e.g. "A = P x L". */
+  formula: string;
+  /** Symbolic form with the actual inputs substituted. */
+  substitution: string;
+  /** Final value including unit. */
+  result: string;
+  noteKey?: TranslationKey;
+  noteVars?: Record<string, string | number>;
+}
+
 export interface CalculationResults {
   roomAreaM2: number;
   roomVolumeM3: number;
@@ -133,6 +161,8 @@ export interface CalculationResults {
   complianceChecks: ComplianceCheck[];
   billOfMaterials: BOMItem[];
   transportTimeRating: 'Excellent' | 'Good' | 'Marginal' | 'Non-Compliant';
+  /** Step-by-step derivation shown in the app and printed in the report. */
+  derivation: CalculationStep[];
 }
 
 export interface ASDScenario {

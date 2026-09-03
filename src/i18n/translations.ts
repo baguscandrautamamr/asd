@@ -20,8 +20,6 @@ export const en = {
   'header.saved': 'Saved',
   'header.exportPdf': 'Export PDF Report',
   'header.buildingPdf': 'Building PDF…',
-  'header.switchToLight': 'Switch to light mode',
-  'header.switchToDark': 'Switch to dark mode',
   'header.language': 'Language',
   'header.openProjects': 'Open project manager',
 
@@ -426,6 +424,150 @@ export const en = {
   'pdf.signClient': 'CLIENT APPROVAL',
   'pdf.signReviewerRole': 'NFPA 72 certified inspector',
   'pdf.signEngineerRole': 'Lead engineer',
+
+  // ------------------------------------------------------------ activities
+  'act.createProject': 'Create project',
+  'act.createProject.details': 'Created the project "{title}" with a default NFPA 72 calculation',
+  'act.updateProject': 'Update project',
+  'act.updateProject.details': 'Updated the details of {title}',
+  'act.statusChange': 'Status changed',
+  'act.statusChange.details': 'Status of {title} changed to {status}',
+  'act.saveScenario': 'Save calculation',
+  'act.saveScenario.details': 'Saved the scenario "{name}" ({rev})',
+
+  // ------------------------------------------------------------ calculation
+  'tab.calculation': 'Calculation Detail',
+  'calc.title': 'How these numbers were derived',
+  'calc.subtitle':
+    'Every value in this report is produced by the steps below, in order. Symbols are substituted with this project’s own inputs so the client can re-check each line by hand.',
+  'calc.disclaimer':
+    'Preliminary design estimate. Must be verified against field measurement and signed off by a certified fire protection engineer.',
+  'calc.inputsTitle': 'Inputs used',
+  'calc.colStep': 'Step',
+  'calc.colFormula': 'Formula',
+  'calc.colSubstitution': 'Substitution',
+  'calc.colResult': 'Result',
+  'calc.colRef': 'Reference',
+  'calc.copy': 'Copy calculation',
+  'calc.copied': 'Calculation copied',
+  'calc.group.geometry': 'A. Room geometry',
+  'calc.group.spacing': 'B. NFPA 72 spacing limits',
+  'calc.group.layout': 'C. Pipe & port layout',
+  'calc.group.hydraulic': 'D. Hydraulics',
+  'calc.group.transport': 'E. Transport time',
+  'calc.area.title': 'Floor area',
+  'calc.area.note': 'The base for port density: how many m² each sampling port has to cover.',
+  'calc.volume.title': 'Room volume',
+  'calc.volume.note': 'Used together with ACH to judge how fast smoke is diluted.',
+  'calc.baseArea.title': 'Base area per sampling port',
+  'calc.baseArea.note':
+    'High air change rates dilute smoke, so each port may cover less area. At {ach} ACH the table gives {base} m² per port before height correction.',
+  'calc.derating.title': 'Ceiling height correction factor',
+  'calc.derating.note':
+    'The higher the ceiling, the more smoke spreads before reaching the sampling pipe. At {h} m the factor is {k}.',
+  'calc.maxArea.title': 'Maximum allowable area per port',
+  'calc.maxArea.note': 'This is the limit the compliance matrix checks the design against.',
+  'calc.maxSpacing.title': 'Maximum linear spacing',
+  'calc.maxSpacing.note':
+    'A square grid: the side of a square whose area equals the maximum area per port.',
+  'calc.pipeSpacing.title': 'Spacing between pipe branches',
+  'calc.pipeSpacing.manual': 'Taken from the value you entered on the form.',
+  'calc.pipeSpacing.auto': 'Calculated automatically: the room is divided evenly across the branches.',
+  'calc.holeSpacing.title': 'Spacing between sampling ports',
+  'calc.holeSpacing.manual': 'Taken from the value you entered on the form.',
+  'calc.holeSpacing.auto': 'Calculated automatically and capped at the {max} m NFPA 72 limit.',
+  'calc.coverage.title': 'Coverage radius per port',
+  'calc.coverage.note':
+    'Half the diagonal of the grid square — the radius drawn on the plan and the 3D model.',
+  'calc.holesPerBranch.title': 'Ports per branch',
+  'calc.holesPerBranch.note': 'Ports are spread evenly along the branch, starting from the wall offset.',
+  'calc.totalHoles.title': 'Total sampling ports',
+  'calc.totalHoles.note':
+    'Gives {actual} m² per port, against an allowable maximum of {max} m² per port.',
+  'calc.totalPipe.title': 'Total pipe length',
+  'calc.totalPipe.note':
+    'Header manifold plus branch run, for every branch. Longest single run: {longest} m.',
+  'calc.orifice.title': 'Orifice tapering',
+  'calc.orifice.note':
+    'Ports near the detector see more vacuum, so they are drilled smaller; far ports are drilled larger. That is what keeps the flow balanced.',
+  'calc.pressure.title': 'Suction pressure at the port',
+  'calc.pressure.note':
+    'Aspirator pressure at {speed} speed, less 3.8 Pa of friction for every metre of 25mm pipe.',
+  'calc.flow.title': 'Flow rate per port',
+  'calc.flow.note':
+    'Orifice equation with a discharge coefficient Cd = 0.62 and air density ρ = 1.2 kg/m³.',
+  'calc.balance.title': 'Flow balance',
+  'calc.balance.note':
+    'The weakest port against the strongest. NFPA 72 practice asks for at least 70%.',
+  'calc.transport.title': 'Smoke transport time',
+  'calc.transport.note':
+    'Air travels at {v} m/s inside the pipe; {delay} s is added for the sampling point entry.',
+  'calc.maxTransport.title': 'Maximum allowable transport time',
+  'calc.maxTransport.note': 'The sensitivity class and air change rate set the {limit} s ceiling.',
+
+  // ------------------------------------------------------------------- auth
+  'auth.tagline': 'NFPA 72 aspirating smoke detection design',
+  'auth.signInTitle': 'Sign in',
+  'auth.signUpTitle': 'Create an account',
+  'auth.email': 'Email',
+  'auth.emailPh': 'name@company.com',
+  'auth.password': 'Password',
+  'auth.passwordPh': 'At least 6 characters',
+  'auth.fullName': 'Full name',
+  'auth.fullNamePh': 'e.g. Bagus Candra Utama',
+  'auth.signIn': 'Sign in',
+  'auth.signUp': 'Create account',
+  'auth.signingIn': 'Signing in…',
+  'auth.creating': 'Creating…',
+  'auth.toSignUp': 'No account yet? Create one',
+  'auth.toSignIn': 'Already have an account? Sign in',
+  'auth.magicLink': 'Send me a sign-in link instead',
+  'auth.magicLinkSent': 'Sign-in link sent. Check your inbox.',
+  'auth.confirmEmail': 'Account created. Confirm your email address, then sign in.',
+  'auth.signOut': 'Sign out',
+  'auth.account': 'Account',
+  'auth.loading': 'Checking your session…',
+  'auth.errorGeneric': 'Sign-in failed. Check your email and password.',
+  'auth.localModeTitle': 'Local mode',
+  'auth.localModeBody':
+    'Supabase is not configured, so projects are stored in this browser only and there is no sign-in or live collaboration. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable them.',
+
+  // --------------------------------------------------------------- presence
+  'presence.title': 'Who is online now',
+  'presence.online': '{n} online',
+  'presence.you': 'you',
+  'presence.since': 'since {time}',
+  'presence.localOnly': 'Live presence needs Supabase. In local mode only you are shown.',
+  'presence.empty': 'Nobody else is online right now.',
+
+  // ------------------------------------------------------------ input help
+  'help.length': 'Long side of the room, {min}–{max} m.',
+  'help.width': 'Short side of the room, {min}–{max} m.',
+  'help.height': 'Floor to ceiling (or to the sampling pipe), {min}–{max} m.',
+  'help.ach': 'Typical: office 4–8, data center 20–40, cleanroom 40–60.',
+  'help.velocity': 'Air speed under the ceiling. Office ~0.3, data center ~2, cleanroom ~3 m/s.',
+  'help.pipeSpacing': 'Distance between branches. Leave at 0 to divide the room evenly.',
+  'help.holeSpacing': 'Distance between ports along a branch. 0 = follow the NFPA 72 limit.',
+  'help.capillary': 'Length of the flexible tube from the pipe down to the ceiling face.',
+  'help.detector': 'The model sets how many branches are available.',
+  'help.sensitivity': 'Class A is the strictest and caps transport time at 60 s.',
+  'form.auto': 'auto',
+  'form.autoHint': '0 = automatic',
+  'form.range': 'range {min}–{max}',
+  'form.pipeSpacingLabel': 'Branch spacing (m)',
+  'form.holeSpacingLabel': 'Port spacing (m)',
+  'form.reset': 'Reset to default',
+  'form.invalid': 'Value is outside the {min}–{max} range and has been adjusted.',
+
+  // -------------------------------------------------------------- PDF extra
+  'pdf.page3Title': 'CALCULATION DETAIL & METHOD',
+  'pdf.section5': '5. Calculation detail — where each number comes from',
+  'pdf.calcStep': 'STEP',
+  'pdf.calcFormula': 'FORMULA',
+  'pdf.calcSub': 'SUBSTITUTION',
+  'pdf.calcResult': 'RESULT',
+  'pdf.calcDisclaimer':
+    'Preliminary design estimate. Verify against field measurement and have a certified fire protection engineer sign off.',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -443,8 +585,6 @@ export const id: Record<TranslationKey, string> = {
   'header.saved': 'Tersimpan',
   'header.exportPdf': 'Ekspor Laporan PDF',
   'header.buildingPdf': 'Menyusun PDF…',
-  'header.switchToLight': 'Ganti ke mode terang',
-  'header.switchToDark': 'Ganti ke mode gelap',
   'header.language': 'Bahasa',
   'header.openProjects': 'Buka manajer proyek',
 
@@ -853,6 +993,150 @@ export const id: Record<TranslationKey, string> = {
   'pdf.signClient': 'PERSETUJUAN KLIEN',
   'pdf.signReviewerRole': 'Inspektor bersertifikat NFPA 72',
   'pdf.signEngineerRole': 'Engineer utama',
+
+  // ------------------------------------------------------------ activities
+  'act.createProject': 'Buat proyek',
+  'act.createProject.details': 'Membuat proyek "{title}" dengan perhitungan NFPA 72 bawaan',
+  'act.updateProject': 'Ubah proyek',
+  'act.updateProject.details': 'Memperbarui detail {title}',
+  'act.statusChange': 'Status berubah',
+  'act.statusChange.details': 'Status {title} diubah menjadi {status}',
+  'act.saveScenario': 'Simpan perhitungan',
+  'act.saveScenario.details': 'Menyimpan skenario "{name}" ({rev})',
+
+  // ------------------------------------------------------------ calculation
+  'tab.calculation': 'Rincian Perhitungan',
+  'calc.title': 'Dari mana angka-angka ini berasal',
+  'calc.subtitle':
+    'Setiap nilai di laporan ini dihasilkan oleh langkah-langkah di bawah, berurutan. Simbolnya sudah disubstitusi dengan input proyek ini sendiri, jadi klien bisa mengecek ulang tiap baris secara manual.',
+  'calc.disclaimer':
+    'Estimasi desain awal. Wajib diverifikasi dengan pengukuran lapangan dan disahkan insinyur proteksi kebakaran bersertifikat.',
+  'calc.inputsTitle': 'Input yang dipakai',
+  'calc.colStep': 'Langkah',
+  'calc.colFormula': 'Rumus',
+  'calc.colSubstitution': 'Substitusi',
+  'calc.colResult': 'Hasil',
+  'calc.colRef': 'Referensi',
+  'calc.copy': 'Salin perhitungan',
+  'calc.copied': 'Perhitungan tersalin',
+  'calc.group.geometry': 'A. Geometri ruangan',
+  'calc.group.spacing': 'B. Batas jarak NFPA 72',
+  'calc.group.layout': 'C. Tata letak pipa & titik',
+  'calc.group.hydraulic': 'D. Hidraulika',
+  'calc.group.transport': 'E. Waktu transport',
+  'calc.area.title': 'Luas lantai',
+  'calc.area.note': 'Dasar kepadatan titik: berapa m² yang harus dicakup tiap titik sampling.',
+  'calc.volume.title': 'Volume ruangan',
+  'calc.volume.note': 'Dipakai bersama ACH untuk menilai seberapa cepat asap terencerkan.',
+  'calc.baseArea.title': 'Luas dasar per titik sampling',
+  'calc.baseArea.note':
+    'Pergantian udara yang tinggi mengencerkan asap, jadi tiap titik boleh mencakup area lebih kecil. Pada {ach} ACH tabel memberi {base} m² per titik sebelum koreksi tinggi.',
+  'calc.derating.title': 'Faktor koreksi tinggi plafon',
+  'calc.derating.note':
+    'Makin tinggi plafon, makin menyebar asap sebelum sampai ke pipa sampling. Pada {h} m faktornya {k}.',
+  'calc.maxArea.title': 'Luas maksimum yang diizinkan per titik',
+  'calc.maxArea.note': 'Inilah batas yang dipakai matriks kepatuhan untuk menguji desain.',
+  'calc.maxSpacing.title': 'Jarak linear maksimum',
+  'calc.maxSpacing.note':
+    'Grid persegi: sisi persegi yang luasnya sama dengan luas maksimum per titik.',
+  'calc.pipeSpacing.title': 'Jarak antar cabang pipa',
+  'calc.pipeSpacing.manual': 'Diambil dari nilai yang Anda isi di form.',
+  'calc.pipeSpacing.auto': 'Dihitung otomatis: ruangan dibagi rata ke seluruh cabang.',
+  'calc.holeSpacing.title': 'Jarak antar titik sampling',
+  'calc.holeSpacing.manual': 'Diambil dari nilai yang Anda isi di form.',
+  'calc.holeSpacing.auto': 'Dihitung otomatis dan dibatasi maksimum {max} m sesuai NFPA 72.',
+  'calc.coverage.title': 'Radius jangkauan per titik',
+  'calc.coverage.note':
+    'Setengah diagonal persegi grid — radius inilah yang digambar di denah dan model 3D.',
+  'calc.holesPerBranch.title': 'Jumlah titik per cabang',
+  'calc.holesPerBranch.note': 'Titik disebar merata sepanjang cabang, dimulai dari offset dinding.',
+  'calc.totalHoles.title': 'Total titik sampling',
+  'calc.totalHoles.note':
+    'Menghasilkan {actual} m² per titik, terhadap batas maksimum {max} m² per titik.',
+  'calc.totalPipe.title': 'Total panjang pipa',
+  'calc.totalPipe.note':
+    'Manifold header ditambah run cabang, untuk seluruh cabang. Run tunggal terpanjang: {longest} m.',
+  'calc.orifice.title': 'Penyempitan bertingkat orifice',
+  'calc.orifice.note':
+    'Titik dekat detektor menerima vakum lebih besar sehingga dibor lebih kecil; titik jauh dibor lebih besar. Inilah yang menjaga aliran tetap seimbang.',
+  'calc.pressure.title': 'Tekanan hisap di titik',
+  'calc.pressure.note':
+    'Tekanan aspirator pada kecepatan {speed}, dikurangi rugi gesek 3,8 Pa tiap meter pipa 25mm.',
+  'calc.flow.title': 'Laju aliran per titik',
+  'calc.flow.note':
+    'Persamaan orifice dengan koefisien discharge Cd = 0,62 dan densitas udara ρ = 1,2 kg/m³.',
+  'calc.balance.title': 'Keseimbangan aliran',
+  'calc.balance.note':
+    'Titik terlemah dibanding titik terkuat. Praktik NFPA 72 meminta minimal 70%.',
+  'calc.transport.title': 'Waktu transport asap',
+  'calc.transport.note':
+    'Udara mengalir {v} m/s di dalam pipa; ditambah {delay} s untuk masuknya asap di titik sampling.',
+  'calc.maxTransport.title': 'Waktu transport maksimum yang diizinkan',
+  'calc.maxTransport.note': 'Kelas sensitivitas dan laju pergantian udara menetapkan batas {limit} s.',
+
+  // ------------------------------------------------------------------- auth
+  'auth.tagline': 'Desain aspirating smoke detection NFPA 72',
+  'auth.signInTitle': 'Masuk',
+  'auth.signUpTitle': 'Buat akun',
+  'auth.email': 'Email',
+  'auth.emailPh': 'nama@perusahaan.com',
+  'auth.password': 'Kata sandi',
+  'auth.passwordPh': 'Minimal 6 karakter',
+  'auth.fullName': 'Nama lengkap',
+  'auth.fullNamePh': 'mis. Bagus Candra Utama',
+  'auth.signIn': 'Masuk',
+  'auth.signUp': 'Buat akun',
+  'auth.signingIn': 'Memproses…',
+  'auth.creating': 'Membuat…',
+  'auth.toSignUp': 'Belum punya akun? Buat sekarang',
+  'auth.toSignIn': 'Sudah punya akun? Masuk',
+  'auth.magicLink': 'Kirimi saya tautan masuk saja',
+  'auth.magicLinkSent': 'Tautan masuk terkirim. Cek kotak masuk email Anda.',
+  'auth.confirmEmail': 'Akun dibuat. Konfirmasi alamat email Anda, lalu masuk.',
+  'auth.signOut': 'Keluar',
+  'auth.account': 'Akun',
+  'auth.loading': 'Memeriksa sesi Anda…',
+  'auth.errorGeneric': 'Gagal masuk. Periksa email dan kata sandi Anda.',
+  'auth.localModeTitle': 'Mode lokal',
+  'auth.localModeBody':
+    'Supabase belum dikonfigurasi, jadi proyek hanya tersimpan di browser ini dan belum ada login maupun kolaborasi live. Isi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY untuk mengaktifkannya.',
+
+  // --------------------------------------------------------------- presence
+  'presence.title': 'Yang sedang online',
+  'presence.online': '{n} online',
+  'presence.you': 'Anda',
+  'presence.since': 'sejak {time}',
+  'presence.localOnly': 'Kehadiran live butuh Supabase. Di mode lokal hanya Anda yang tampil.',
+  'presence.empty': 'Belum ada orang lain yang online.',
+
+  // ------------------------------------------------------------ input help
+  'help.length': 'Sisi panjang ruangan, {min}–{max} m.',
+  'help.width': 'Sisi lebar ruangan, {min}–{max} m.',
+  'help.height': 'Lantai ke plafon (atau ke pipa sampling), {min}–{max} m.',
+  'help.ach': 'Umumnya: kantor 4–8, data center 20–40, cleanroom 40–60.',
+  'help.velocity': 'Kecepatan udara di bawah plafon. Kantor ~0,3, data center ~2, cleanroom ~3 m/s.',
+  'help.pipeSpacing': 'Jarak antar cabang. Isi 0 untuk membagi ruangan secara merata.',
+  'help.holeSpacing': 'Jarak antar titik pada satu cabang. 0 = ikut batas NFPA 72.',
+  'help.capillary': 'Panjang selang lentur dari pipa turun ke permukaan plafon.',
+  'help.detector': 'Model menentukan berapa cabang yang tersedia.',
+  'help.sensitivity': 'Kelas A paling ketat dan membatasi waktu transport di 60 detik.',
+  'form.auto': 'otomatis',
+  'form.autoHint': '0 = otomatis',
+  'form.range': 'rentang {min}–{max}',
+  'form.pipeSpacingLabel': 'Jarak antar cabang (m)',
+  'form.holeSpacingLabel': 'Jarak antar titik (m)',
+  'form.reset': 'Kembalikan ke bawaan',
+  'form.invalid': 'Nilai di luar rentang {min}–{max} dan sudah disesuaikan.',
+
+  // -------------------------------------------------------------- PDF extra
+  'pdf.page3Title': 'RINCIAN PERHITUNGAN & METODE',
+  'pdf.section5': '5. Rincian perhitungan — dari mana tiap angka berasal',
+  'pdf.calcStep': 'LANGKAH',
+  'pdf.calcFormula': 'RUMUS',
+  'pdf.calcSub': 'SUBSTITUSI',
+  'pdf.calcResult': 'HASIL',
+  'pdf.calcDisclaimer':
+    'Estimasi desain awal. Verifikasi dengan pengukuran lapangan dan sahkan oleh insinyur proteksi kebakaran bersertifikat.',
 };
 
 export const dictionaries = { en, id } as const;

@@ -11,7 +11,6 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
-import { useTheme } from '../context/ThemeContext';
 import { materialKey } from '../i18n/labels';
 
 export interface FloorPlanCanvasRef {
@@ -58,75 +57,43 @@ interface PlanPalette {
   asdText: string;
 }
 
-const DARK_PLAN: PlanPalette = {
-  page: '#0b1324',
-  room: '#0f172a',
-  roomStroke: '#334155',
-  grid: 'rgba(51, 65, 85, 0.45)',
-  rack: '#1e293b',
-  rackStroke: '#475569',
-  rackDetail: '#334155',
-  dim: '#64748b',
-  dimText: '#cbd5e1',
-  wallText: '#64748b',
-  pipe: '#e11d48',
-  pipeGlow: '#f43f5e',
-  endCap: '#be123c',
-  endCapStroke: '#ffe4e6',
-  branchText: '#fda4af',
-  hole: '#ffffff',
-  holeHover: '#38bdf8',
-  holeStroke: '#e11d48',
-  labelBg: '#0f172a',
-  labelStroke: '#334155',
-  labelText: '#ffffff',
-  orificeText: '#fcd34d',
-  coverageFill: 'rgba(244, 63, 94, 0.08)',
-  coverageStroke: 'rgba(244, 63, 94, 0.3)',
-  asdBody: '#1e293b',
-  asdBodyStroke: '#e2e8f0',
-  asdFace: '#0f172a',
-  asdFaceStroke: '#94a3b8',
-  asdText: '#e2e8f0',
-};
-
-const LIGHT_PLAN: PlanPalette = {
-  page: '#eef2f8',
+/** Single light palette; fire-alarm red stays for pipes and the ASD unit. */
+const PLAN: PlanPalette = {
+  page: '#f4f6f4',
   room: '#ffffff',
-  roomStroke: '#94a3b8',
-  grid: 'rgba(148, 163, 184, 0.35)',
-  rack: '#e2e8f0',
-  rackStroke: '#94a3b8',
-  rackDetail: '#cbd5e1',
-  dim: '#64748b',
-  dimText: '#334155',
-  wallText: '#94a3b8',
-  pipe: '#e11d48',
-  pipeGlow: '#f43f5e',
-  endCap: '#9f1239',
+  roomStroke: '#8b9a8b',
+  grid: 'rgba(139, 154, 139, 0.28)',
+  rack: '#e6ebe6',
+  rackStroke: '#9aa89a',
+  rackDetail: '#c6cfc6',
+  dim: '#6b7a6b',
+  dimText: '#26332b',
+  wallText: '#8b9a8b',
+  pipe: '#d5352f',
+  pipeGlow: '#e5534d',
+  endCap: '#9b1f1a',
   endCapStroke: '#ffffff',
-  branchText: '#9f1239',
+  branchText: '#9b1f1a',
   hole: '#ffffff',
-  holeHover: '#0284c7',
-  holeStroke: '#e11d48',
+  holeHover: '#4f8221',
+  holeStroke: '#d5352f',
   labelBg: '#ffffff',
-  labelStroke: '#cbd5e1',
-  labelText: '#0f172a',
-  orificeText: '#b45309',
-  coverageFill: 'rgba(225, 29, 72, 0.07)',
-  coverageStroke: 'rgba(225, 29, 72, 0.32)',
-  asdBody: '#cbd5e1',
-  asdBodyStroke: '#334155',
-  asdFace: '#f8fafc',
-  asdFaceStroke: '#64748b',
-  asdText: '#0f172a',
+  labelStroke: '#ccd4cc',
+  labelText: '#14201a',
+  orificeText: '#a15c07',
+  coverageFill: 'rgba(79, 130, 33, 0.09)',
+  coverageStroke: 'rgba(79, 130, 33, 0.42)',
+  asdBody: '#cfd7cf',
+  asdBodyStroke: '#26332b',
+  asdFace: '#f8faf8',
+  asdFaceStroke: '#6b7a6b',
+  asdText: '#14201a',
 };
 
 export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasProps>(
   ({ params, results }, ref) => {
     const { t, n } = useI18n();
-    const { isDark } = useTheme();
-    const palette = isDark ? DARK_PLAN : LIGHT_PLAN;
+    const palette = PLAN;
 
     const [zoom, setZoom] = useState(1);
     const [showCoverage, setShowCoverage] = useState(true);

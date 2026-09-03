@@ -1,6 +1,7 @@
 import {
   CalculationParams,
   CalculationResults,
+  CalculationStep,
   HoleScheduleItem,
   PipeBranchData,
   ComplianceCheck,
@@ -12,8 +13,35 @@ import {
  * hydraulic flow estimation, and BoQ materials.
  */
 export function calculateASD(params: CalculationParams): CalculationResults {
+  // Every intermediate value is recorded as it is produced, so the explanation
+  // shown to the client is generated from the same numbers as the result.
+  const derivation: CalculationStep[] = [];
+  const step = (item: CalculationStep) => derivation.push(item);
+  const num = (value: number, digits = 2) =>
+    Number.isFinite(value) ? String(Math.round(value * 10 ** digits) / 10 ** digits) : '-';
+
   const roomAreaM2 = params.length * params.width;
   const roomVolumeM3 = roomAreaM2 * params.height;
+
+  step({
+    id: 'calc-area',
+    group: 'geometry',
+    titleKey: 'calc.area.title',
+    formula: 'A = L \u00d7 W',
+    substitution: `A = ${num(params.length, 1)} \u00d7 ${num(params.width, 1)}`,
+    result: `${num(roomAreaM2, 1)} m\u00b2`,
+    noteKey: 'calc.area.note',
+  });
+
+  step({
+    id: 'calc-volume',
+    group: 'geometry',
+    titleKey: 'calc.volume.title',
+    formula: 'V = A \u00d7 H',
+    substitution: `V = ${num(roomAreaM2, 1)} \u00d7 ${num(params.height, 1)}`,
+    result: `${num(roomVolumeM3, 1)} m\u00b3`,
+    noteKey: 'calc.volume.note',
+  });
 
   // 1. Determine NFPA 72 baseline spacing based on Air Changes Per Hour (ACH) & Room Type
   let baseMaxAreaPerHole = 81.0; // standard NFPA 72 30ft x 30ft (~9m x 9m)
@@ -26,6 +54,18 @@ export function calculateASD(params: CalculationParams): CalculationResults {
   } else if (params.airChangesPerHour > 6) {
     baseMaxAreaPerHole = 50.0;
   }
+
+  step({
+    id: 'calc-base-area',
+    group: 'spacing',
+    titleKey: 'calc.baseArea.title',
+    reference: 'NFPA 72 Sec. 17.7.3.2.3 & 17.7.6',
+    formula: 'A_base = f(ACH, room type)',
+    substitution: `f(${params.airChangesPerHour} ACH, ${params.roomType})`,
+    result: `${num(baseMaxAreaPerHole, 1)} m\u00b2/port`,
+    noteKey: 'calc.baseArea.note',
+    noteVars: { ach: params.airChangesPerHour, base: num(baseMaxAreaPerHole, 1) },
+  });
 
   // 2. Ceiling height reduction factor (NFPA 72 Table 17.7.3.2.3.1)
   let heightDerating = 1.0;
@@ -42,6 +82,39 @@ export function calculateASD(params: CalculationParams): CalculationResults {
 
   const recommendedMaxAreaPerHoleM2 = Math.round(baseMaxAreaPerHole * heightDerating * 10) / 10;
   const maxLinearSpacingM = Math.round(Math.sqrt(recommendedMaxAreaPerHoleM2) * 10) / 10;
+
+  step({
+    id: 'calc-derating',
+    group: 'spacing',
+    titleKey: 'calc.derating.title',
+    reference: 'NFPA 72 Table 17.7.3.2.3.1',
+    formula: 'k_h = f(H)',
+    substitution: `k_h = f(${num(params.height, 1)} m)`,
+    result: num(heightDerating, 2),
+    noteKey: 'calc.derating.note',
+    noteVars: { h: num(params.height, 1), k: num(heightDerating, 2) },
+  });
+
+  step({
+    id: 'calc-max-area',
+    group: 'spacing',
+    titleKey: 'calc.maxArea.title',
+    reference: 'NFPA 72 Sec. 17.7.3.6.3',
+    formula: 'A_max = A_base \u00d7 k_h',
+    substitution: `A_max = ${num(baseMaxAreaPerHole, 1)} \u00d7 ${num(heightDerating, 2)}`,
+    result: `${num(recommendedMaxAreaPerHoleM2, 1)} m\u00b2/port`,
+    noteKey: 'calc.maxArea.note',
+  });
+
+  step({
+    id: 'calc-max-spacing',
+    group: 'spacing',
+    titleKey: 'calc.maxSpacing.title',
+    formula: 'S_max = \u221aA_max',
+    substitution: `S_max = \u221a${num(recommendedMaxAreaPerHoleM2, 1)}`,
+    result: `${num(maxLinearSpacingM, 1)} m`,
+    noteKey: 'calc.maxSpacing.note',
+  });
 
   // 3. Pipe layout configuration
   const pipeCount = Math.max(1, Math.min(4, params.pipeCount || 2));
@@ -61,6 +134,36 @@ export function calculateASD(params: CalculationParams): CalculationResults {
     params.holeSpacingMeters > 0
       ? params.holeSpacingMeters
       : Math.min(maxLinearSpacingM, Math.max(2.5, Math.round((runLength / Math.ceil(runLength / maxLinearSpacingM)) * 10) / 10));
+
+  step({
+    id: 'calc-pipe-spacing',
+    group: 'layout',
+    titleKey: 'calc.pipeSpacing.title',
+    formula:
+      params.pipeSpacingMeters > 0 ? 'S_pipe = input' : 'S_pipe = W_cross / n_pipe',
+    substitution:
+      params.pipeSpacingMeters > 0
+        ? `S_pipe = ${num(params.pipeSpacingMeters, 1)}`
+        : `S_pipe = ${num(crossWidth, 1)} / ${pipeCount}`,
+    result: `${num(effectivePipeSpacingM, 1)} m`,
+    noteKey:
+      params.pipeSpacingMeters > 0 ? 'calc.pipeSpacing.manual' : 'calc.pipeSpacing.auto',
+  });
+
+  step({
+    id: 'calc-hole-spacing',
+    group: 'layout',
+    titleKey: 'calc.holeSpacing.title',
+    formula: params.holeSpacingMeters > 0 ? 'S_hole = input' : 'S_hole = min(S_max, L_run / n)',
+    substitution:
+      params.holeSpacingMeters > 0
+        ? `S_hole = ${num(params.holeSpacingMeters, 1)}`
+        : `S_hole = min(${num(maxLinearSpacingM, 1)}, ${num(runLength, 1)} / n)`,
+    result: `${num(effectiveHoleSpacingM, 1)} m`,
+    noteKey:
+      params.holeSpacingMeters > 0 ? 'calc.holeSpacing.manual' : 'calc.holeSpacing.auto',
+    noteVars: { max: num(maxLinearSpacingM, 1) },
+  });
 
   // 4. Calculate detector coordinates
   // Wall positions in room coordinates (x: 0..length, y: 0..width)
@@ -97,6 +200,17 @@ export function calculateASD(params: CalculationParams): CalculationResults {
 
   // Coverage radius per NFPA 72: R = Spacing / sqrt(2)
   const coverageRadiusM = Math.round((effectiveHoleSpacingM / Math.SQRT2) * 100) / 100;
+
+  step({
+    id: 'calc-coverage',
+    group: 'layout',
+    titleKey: 'calc.coverage.title',
+    reference: 'NFPA 72 Sec. 17.7.3.6.3',
+    formula: 'R = S_hole / \u221a2',
+    substitution: `R = ${num(effectiveHoleSpacingM, 1)} / 1.414`,
+    result: `${num(coverageRadiusM, 2)} m`,
+    noteKey: 'calc.coverage.note',
+  });
 
   for (let pIdx = 0; pIdx < pipeCount; pIdx++) {
     const pipeName = `Pipe ${String.fromCharCode(65 + pIdx)}`; // Pipe A, Pipe B, Pipe C, Pipe D
@@ -222,6 +336,61 @@ export function calculateASD(params: CalculationParams): CalculationResults {
     });
   }
 
+  const holesPerBranch = branches[0]?.holeCount ?? 0;
+  const branchRunM = branches[0]
+    ? Math.round(
+        (branches[0].lengthMeters -
+          (Math.abs(detX - branches[0].startPoint.x) + Math.abs(detY - branches[0].startPoint.y))) *
+          10
+      ) / 10
+    : 0;
+
+  step({
+    id: 'calc-holes-branch',
+    group: 'layout',
+    titleKey: 'calc.holesPerBranch.title',
+    formula: 'n_hole = floor(L_run / S_hole) + 1',
+    substitution: `n_hole = floor(${num(branchRunM, 1)} / ${num(effectiveHoleSpacingM, 1)}) + 1`,
+    result: `${holesPerBranch} port/branch`,
+    noteKey: 'calc.holesPerBranch.note',
+  });
+
+  step({
+    id: 'calc-total-holes',
+    group: 'layout',
+    titleKey: 'calc.totalHoles.title',
+    formula: 'N = n_hole \u00d7 n_pipe',
+    substitution: `N = ${holesPerBranch} \u00d7 ${pipeCount}`,
+    result: `${allHoles.length} port`,
+    noteKey: 'calc.totalHoles.note',
+    noteVars: {
+      actual: num(roomAreaM2 / Math.max(1, allHoles.length), 1),
+      max: num(recommendedMaxAreaPerHoleM2, 1),
+    },
+  });
+
+  step({
+    id: 'calc-total-pipe',
+    group: 'layout',
+    titleKey: 'calc.totalPipe.title',
+    formula: 'L_total = \u03a3 (L_manifold + L_run)',
+    substitution: `L_total = ${pipeCount} \u00d7 (manifold + ${num(branchRunM, 1)})`,
+    result: `${num(totalPipeLengthM, 1)} m`,
+    noteKey: 'calc.totalPipe.note',
+    noteVars: { longest: num(maxBranchLengthM, 1) },
+  });
+
+  step({
+    id: 'calc-orifice',
+    group: 'hydraulic',
+    titleKey: 'calc.orifice.title',
+    reference: 'VESDA / Securiton hydraulic balancing practice',
+    formula: '\u00f8 = f(position along branch)',
+    substitution: '2.4 mm \u2192 2.8 mm \u2192 3.2 mm \u2192 3.8 mm',
+    result: '2.4 - 3.8 mm',
+    noteKey: 'calc.orifice.note',
+  });
+
   // 6. Transport Time Estimation
   // Air speed inside 25mm pipe is ~3.2 m/s (high speed), ~2.6 m/s (medium), ~2.0 m/s (low)
   const airSpeed =
@@ -253,6 +422,62 @@ export function calculateASD(params: CalculationParams): CalculationResults {
     curr.distanceAlongPipe > prev.distanceAlongPipe ? curr : prev
   );
   const suctionPressureEndHolePa = furthestHole ? furthestHole.suctionPressurePa : 35;
+  step({
+    id: 'calc-pressure',
+    group: 'hydraulic',
+    titleKey: 'calc.pressure.title',
+    formula: 'P_d = P_0 - (d \u00d7 f)',
+    substitution: `P_d = ${
+      params.aspiratorSpeed === 'high' ? 420 : params.aspiratorSpeed === 'medium' ? 300 : 200
+    } - (${num(maxBranchLengthM, 1)} \u00d7 3.8)`,
+    result: `${suctionPressureEndHolePa} Pa`,
+    noteKey: 'calc.pressure.note',
+    noteVars: { speed: params.aspiratorSpeed },
+  });
+
+  step({
+    id: 'calc-flow',
+    group: 'hydraulic',
+    titleKey: 'calc.flow.title',
+    formula: 'Q = Cd \u00d7 A \u00d7 \u221a(2\u0394P / \u03c1)',
+    substitution: `Q = 0.62 \u00d7 A \u00d7 \u221a(2 \u00d7 \u0394P / 1.2)`,
+    result: `${num(Math.min(...flows), 1)} - ${num(Math.max(...flows), 1)} L/min`,
+    noteKey: 'calc.flow.note',
+  });
+
+  step({
+    id: 'calc-balance',
+    group: 'hydraulic',
+    titleKey: 'calc.balance.title',
+    formula: 'B = Q_min / Q_max \u00d7 100%',
+    substitution: `B = ${num(Math.min(...flows), 1)} / ${num(Math.max(...flows), 1)} \u00d7 100%`,
+    result: `${num(flowBalanceRatioPercent, 1)}%`,
+    noteKey: 'calc.balance.note',
+  });
+
+  step({
+    id: 'calc-transport',
+    group: 'transport',
+    titleKey: 'calc.transport.title',
+    reference: 'NFPA 72 Sec. 17.7.3.6.2',
+    formula: 't = L_max / v + t_entry',
+    substitution: `t = ${num(maxBranchLengthM, 1)} / ${num(airSpeed, 1)} + ${num(entryDelaySec, 1)}`,
+    result: `${num(estimatedTransportTimeSec, 1)} s`,
+    noteKey: 'calc.transport.note',
+    noteVars: { v: num(airSpeed, 1), delay: num(entryDelaySec, 1) },
+  });
+
+  step({
+    id: 'calc-max-transport',
+    group: 'transport',
+    titleKey: 'calc.maxTransport.title',
+    reference: 'NFPA 72 Sec. 17.7.3.6.2',
+    formula: 't_max = f(sensitivity class, ACH)',
+    substitution: `f(${params.sensitivityClass}, ${params.airChangesPerHour} ACH)`,
+    result: `${maxAllowedTransportTimeSec} s`,
+    noteKey: 'calc.maxTransport.note',
+    noteVars: { limit: maxAllowedTransportTimeSec },
+  });
 
   // Transport Time Rating
   let transportTimeRating: 'Excellent' | 'Good' | 'Marginal' | 'Non-Compliant' = 'Good';
@@ -445,5 +670,6 @@ export function calculateASD(params: CalculationParams): CalculationResults {
     complianceChecks,
     billOfMaterials,
     transportTimeRating,
+    derivation,
   };
 }

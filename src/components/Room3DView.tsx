@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { CalculationParams, CalculationResults, HoleScheduleItem } from '../types';
 import { useI18n } from '../context/I18nContext';
-import { useTheme } from '../context/ThemeContext';
 
 export interface Room3DViewRef {
   /** PNG snapshot of the current viewport, used by the PDF report. */
@@ -70,50 +69,32 @@ interface ScenePalette {
   rim: number;
 }
 
-const DARK_PALETTE: ScenePalette = {
-  background: 0x060a12,
-  floor: 0x0e1626,
-  grid: 0x1d2839,
-  gridStrong: 0x314863,
-  wall: 0x16203a,
-  wallEdge: 0x3e5075,
-  ceiling: 0x2b3b58,
-  rack: 0x263654,
-  rackEdge: 0x51678f,
-  pipe: 0xf43f5e,
-  pipeEmissive: 0x6d0f2a,
-  hole: 0xf8fafc,
-  holeHover: 0x38bdf8,
-  coverage: 0xf43f5e,
-  asdBody: 0x223049,
-  asdFace: 0x0b1220,
-  label: '#cbd5e1',
-  ambient: 0x1e2a44,
-  key: 0xdce6ff,
-  rim: 0xf43f5e,
-};
-
-const LIGHT_PALETTE: ScenePalette = {
-  background: 0xdfe6f0,
-  floor: 0xccd6e4,
-  grid: 0xaab7c9,
-  gridStrong: 0x8394ab,
-  wall: 0xeef3f9,
-  wallEdge: 0x8ea0b8,
-  ceiling: 0x93a3ba,
-  rack: 0xb4c0d1,
-  rackEdge: 0x8494ab,
-  pipe: 0xe11d48,
-  pipeEmissive: 0x53071b,
+/**
+ * Single light palette matching the app shell. Greens come from the brand,
+ * while the pipe network keeps fire-alarm red because that is the colour of
+ * the real CPVC material on site.
+ */
+const PALETTE: ScenePalette = {
+  background: 0xeef2ee,
+  floor: 0xd5ded5,
+  grid: 0xa9b7a9,
+  gridStrong: 0x7c8d7c,
+  wall: 0xffffff,
+  wallEdge: 0x8b9a8b,
+  ceiling: 0x9fae9f,
+  rack: 0xbcc8bc,
+  rackEdge: 0x8b9a8b,
+  pipe: 0xd5352f,
+  pipeEmissive: 0x4a0d0b,
   hole: 0xffffff,
-  holeHover: 0x0284c7,
-  coverage: 0xe11d48,
+  holeHover: 0x4f8221,
+  coverage: 0x4f8221,
   asdBody: 0x64748b,
   asdFace: 0x1e293b,
-  label: '#334155',
-  ambient: 0xe8eef7,
+  label: '#26332b',
+  ambient: 0xe6ece6,
   key: 0xffffff,
-  rim: 0xe11d48,
+  rim: 0x8cbf3f,
 };
 
 /** Releases GPU memory for a subtree before it is discarded. */
@@ -277,7 +258,6 @@ interface FlowTrack {
 export const Room3DView = forwardRef<Room3DViewRef, Room3DViewProps>(
   ({ params, results }, ref) => {
     const { t, n } = useI18n();
-    const { isDark } = useTheme();
 
     const mountRef = useRef<HTMLDivElement>(null);
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -289,7 +269,6 @@ export const Room3DView = forwardRef<Room3DViewRef, Room3DViewProps>(
     const holeMeshesRef = useRef<THREE.Mesh[]>([]);
     const flowRef = useRef<FlowTrack[]>([]);
     const hoveredMeshRef = useRef<THREE.Mesh | null>(null);
-    const paletteRef = useRef<ScenePalette>(isDark ? DARK_PALETTE : LIGHT_PALETTE);
 
     const [hovered, setHovered] = useState<HoleScheduleItem | null>(null);
     const [autoRotate, setAutoRotate] = useState(false);
@@ -516,8 +495,7 @@ export const Room3DView = forwardRef<Room3DViewRef, Room3DViewProps>(
       const scene = sceneRef.current;
       if (!scene) return;
 
-      const palette = isDark ? DARK_PALETTE : LIGHT_PALETTE;
-      paletteRef.current = palette;
+      const palette = PALETTE;
 
       if (modelRef.current) {
         scene.remove(modelRef.current);
@@ -548,19 +526,19 @@ export const Room3DView = forwardRef<Room3DViewRef, Room3DViewProps>(
       };
 
       // --- lighting -------------------------------------------------------
-      const hemi = new THREE.HemisphereLight(palette.key, palette.ambient, isDark ? 0.7 : 1.05);
+      const hemi = new THREE.HemisphereLight(palette.key, palette.ambient, 1.05);
       model.add(hemi);
 
-      const keyLight = new THREE.DirectionalLight(palette.key, isDark ? 1.0 : 1.35);
+      const keyLight = new THREE.DirectionalLight(palette.key, 1.35);
       keyLight.position.set(length * 0.6, height * 3.2, width * 0.8);
       model.add(keyLight);
 
-      const fillLight = new THREE.DirectionalLight(palette.key, isDark ? 0.35 : 0.5);
+      const fillLight = new THREE.DirectionalLight(palette.key, 0.5);
       fillLight.position.set(-length * 0.7, height * 1.6, -width * 0.9);
       model.add(fillLight);
 
       // A red rim light so the pipe network reads as the hero of the scene.
-      const rimLight = new THREE.PointLight(palette.rim, isDark ? 55 : 22, Math.max(length, width) * 1.6, 2);
+      const rimLight = new THREE.PointLight(palette.rim, 18, Math.max(length, width) * 1.6, 2);
       rimLight.position.set(0, height * 0.92, 0);
       model.add(rimLight);
 
@@ -592,7 +570,7 @@ export const Room3DView = forwardRef<Room3DViewRef, Room3DViewProps>(
           color: palette.wall,
           side: THREE.BackSide,
           transparent: true,
-          opacity: isDark ? 0.28 : 0.2,
+          opacity: 0.2,
           roughness: 1,
           metalness: 0,
         })
@@ -664,7 +642,7 @@ export const Room3DView = forwardRef<Room3DViewRef, Room3DViewProps>(
       const pipeMaterial = new THREE.MeshStandardMaterial({
         color: palette.pipe,
         emissive: palette.pipeEmissive,
-        emissiveIntensity: isDark ? 0.9 : 0.45,
+        emissiveIntensity: 0.45,
         roughness: 0.35,
         metalness: 0.1,
       });
@@ -776,7 +754,7 @@ export const Room3DView = forwardRef<Room3DViewRef, Room3DViewProps>(
           new THREE.MeshBasicMaterial({
             color: palette.coverage,
             transparent: true,
-            opacity: isDark ? 0.1 : 0.09,
+            opacity: 0.1,
             side: THREE.DoubleSide,
             depthWrite: false,
           })
@@ -863,7 +841,7 @@ export const Room3DView = forwardRef<Room3DViewRef, Room3DViewProps>(
         holeMeshesRef.current = [];
         hoveredMeshRef.current = null;
       };
-    }, [params, results, isDark, t, n]);
+    }, [params, results, t, n]);
 
     // Re-frame whenever the room itself changes shape.
     useEffect(() => {
