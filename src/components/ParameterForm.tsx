@@ -72,12 +72,21 @@ const SectionHeading: React.FC<{ step: number; children: React.ReactNode }> = ({
   </div>
 );
 
-const FieldLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <label className="block text-xs font-semibold text-ink-2 mb-1">{children}</label>
-);
-
-const FieldHelp: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <p className="text-2xs text-ink-3 mt-1 leading-snug">{children}</p>
+/** A select styled as a field-cell so it aligns with NumberField neighbours. */
+const SelectField: React.FC<{
+  label: string;
+  help?: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}> = ({ label, help, value, onChange, children }) => (
+  <div className="field-cell">
+    <label className="field-label">{label}</label>
+    <select value={value} onChange={(e) => onChange(e.target.value)} className="field text-xs">
+      {children}
+    </select>
+    <p className="field-help">{help ?? ''}</p>
+  </div>
 );
 
 export const ParameterForm: React.FC<ParameterFormProps> = ({
@@ -135,7 +144,7 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
       <div className="space-y-3">
         <SectionHeading step={1}>{t('form.section1')}</SectionHeading>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="field-row grid-cols-3">
           <NumberField
             label={t('form.length')}
             value={params.length}
@@ -165,36 +174,30 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <FieldLabel>{t('form.ceilingProfile')}</FieldLabel>
-            <select
-              value={params.ceilingType}
-              onChange={(e) => updateField('ceilingType', e.target.value as CeilingType)}
-              className="field text-xs"
-            >
-              {CEILING_TYPES.map((value) => (
-                <option key={value} value={value}>
-                  {t(ceilingKey[value])}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="field-row grid-cols-2">
+          <SelectField
+            label={t('form.ceilingProfile')}
+            value={params.ceilingType}
+            onChange={(v) => updateField('ceilingType', v as CeilingType)}
+          >
+            {CEILING_TYPES.map((value) => (
+              <option key={value} value={value}>
+                {t(ceilingKey[value])}
+              </option>
+            ))}
+          </SelectField>
 
-          <div>
-            <FieldLabel>{t('form.roomType')}</FieldLabel>
-            <select
-              value={params.roomType}
-              onChange={(e) => updateField('roomType', e.target.value as RoomType)}
-              className="field text-xs"
-            >
-              {ROOM_TYPES.map((value) => (
-                <option key={value} value={value}>
-                  {t(roomTypeKey[value])}
-                </option>
-              ))}
-            </select>
-          </div>
+          <SelectField
+            label={t('form.roomType')}
+            value={params.roomType}
+            onChange={(v) => updateField('roomType', v as RoomType)}
+          >
+            {ROOM_TYPES.map((value) => (
+              <option key={value} value={value}>
+                {t(roomTypeKey[value])}
+              </option>
+            ))}
+          </SelectField>
         </div>
       </div>
 
@@ -202,7 +205,7 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
       <div className="space-y-3">
         <SectionHeading step={2}>{t('form.section2')}</SectionHeading>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="field-row grid-cols-2">
           <NumberField
             label={t('form.ach')}
             value={params.airChangesPerHour}
@@ -223,20 +226,19 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
           />
         </div>
 
-        <div>
-          <FieldLabel>{t('form.sensitivity')}</FieldLabel>
-          <select
+        <div className="field-row grid-cols-1">
+          <SelectField
+            label={t('form.sensitivity')}
+            help={t('help.sensitivity')}
             value={params.sensitivityClass}
-            onChange={(e) => updateField('sensitivityClass', e.target.value as SensitivityClass)}
-            className="field text-xs font-medium"
+            onChange={(v) => updateField('sensitivityClass', v as SensitivityClass)}
           >
             {SENSITIVITY_CLASSES.map((value) => (
               <option key={value} value={value}>
                 {t(sensitivityKey[value])}
               </option>
             ))}
-          </select>
-          <FieldHelp>{t('help.sensitivity')}</FieldHelp>
+          </SelectField>
         </div>
       </div>
 
@@ -244,32 +246,31 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
       <div className="space-y-3">
         <SectionHeading step={3}>{t('form.section3')}</SectionHeading>
 
-        <div>
-          <FieldLabel>{t('form.detectorModel')}</FieldLabel>
-          <select
+        <div className="field-row grid-cols-1">
+          <SelectField
+            label={t('form.detectorModel')}
+            help={t('help.detector')}
             value={params.detectorModel}
-            onChange={(e) => {
-              const model = e.target.value as DetectorModel;
+            onChange={(v) => {
+              const model = v as DetectorModel;
               let pipes = params.pipeCount;
               if (model.includes('4-Pipe')) pipes = 4;
               else if (model.includes('2-Pipe')) pipes = 2;
               else if (model.includes('Single Pipe')) pipes = 1;
               onChange({ ...params, detectorModel: model, pipeCount: pipes });
             }}
-            className="field text-xs font-medium"
           >
             {DETECTOR_MODELS.map((value) => (
               <option key={value} value={value}>
                 {t(detectorKey[value])}
               </option>
             ))}
-          </select>
-          <FieldHelp>{t('help.detector')}</FieldHelp>
+          </SelectField>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <FieldLabel>{t('form.pipeBranches')}</FieldLabel>
+        <div className="field-row grid-cols-2">
+          <div className="field-cell">
+            <label className="field-label">{t('form.pipeBranches')}</label>
             <div className="flex rounded-lg border border-line-2 overflow-hidden">
               {[1, 2, 3, 4].map((count) => (
                 <button
@@ -290,29 +291,25 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                 </button>
               ))}
             </div>
+            <p className="field-help" />
           </div>
 
-          <div>
-            <FieldLabel>{t('form.aspirator')}</FieldLabel>
-            <select
-              value={params.aspiratorSpeed}
-              onChange={(e) =>
-                updateField('aspiratorSpeed', e.target.value as 'low' | 'medium' | 'high')
-              }
-              className="field text-xs font-medium"
-            >
-              {(['high', 'medium', 'low'] as const).map((value) => (
-                <option key={value} value={value}>
-                  {t(speedKey[value])}
-                </option>
-              ))}
-            </select>
-          </div>
+          <SelectField
+            label={t('form.aspirator')}
+            value={params.aspiratorSpeed}
+            onChange={(v) => updateField('aspiratorSpeed', v as 'low' | 'medium' | 'high')}
+          >
+            {(['high', 'medium', 'low'] as const).map((value) => (
+              <option key={value} value={value}>
+                {t(speedKey[value])}
+              </option>
+            ))}
+          </SelectField>
         </div>
 
         {/* Spacing drives the whole layout, so it is editable rather than
             hidden — and 0 hands the decision back to the NFPA 72 limit. */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="field-row grid-cols-2">
           <NumberField
             label={t('form.pipeSpacingLabel')}
             value={params.pipeSpacingMeters}
@@ -337,88 +334,77 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <FieldLabel>{t('form.pipeMaterial')}</FieldLabel>
-            <select
-              value={params.pipeMaterial}
-              onChange={(e) => updateField('pipeMaterial', e.target.value)}
-              className="field text-xs"
-            >
-              {MATERIALS.map((material) => (
-                <option key={material.value} value={material.value}>
-                  {t(material.key)}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="field-row grid-cols-2">
+          <SelectField
+            label={t('form.pipeMaterial')}
+            value={params.pipeMaterial}
+            onChange={(v) => updateField('pipeMaterial', v)}
+          >
+            {MATERIALS.map((material) => (
+              <option key={material.value} value={material.value}>
+                {t(material.key)}
+              </option>
+            ))}
+          </SelectField>
 
-          <div>
-            <FieldLabel>{t('form.orientation')}</FieldLabel>
-            <select
-              value={params.pipeRunOrientation}
-              onChange={(e) => updateField('pipeRunOrientation', e.target.value as PipeOrientation)}
-              className="field text-xs"
-            >
-              {ORIENTATIONS.map((value) => (
-                <option key={value} value={value}>
-                  {t(orientationKey[value])}
-                </option>
-              ))}
-            </select>
-          </div>
+          <SelectField
+            label={t('form.orientation')}
+            value={params.pipeRunOrientation}
+            onChange={(v) => updateField('pipeRunOrientation', v as PipeOrientation)}
+          >
+            {ORIENTATIONS.map((value) => (
+              <option key={value} value={value}>
+                {t(orientationKey[value])}
+              </option>
+            ))}
+          </SelectField>
         </div>
 
-        <div>
-          <FieldLabel>{t('form.wallMount')}</FieldLabel>
-          <select
+        <div className="field-row grid-cols-2">
+          <SelectField
+            label={t('form.wallMount')}
             value={params.detectorLocation.wall}
-            onChange={(e) =>
+            onChange={(v) =>
               updateField('detectorLocation', {
                 ...params.detectorLocation,
-                wall: e.target.value as WallLocation,
+                wall: v as WallLocation,
               })
             }
-            className="field text-xs"
           >
             {WALLS.map((value) => (
               <option key={value} value={value}>
                 {t(wallKey[value])}
               </option>
             ))}
-          </select>
-        </div>
+          </SelectField>
 
-        <div className="pt-1 space-y-3">
-          <label className="flex items-start gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={params.capillaryDropEnabled}
-              onChange={(e) => updateField('capillaryDropEnabled', e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded accent-brand border-line-2"
+          {params.capillaryDropEnabled ? (
+            <NumberField
+              label={t('form.capillaryLength')}
+              value={params.capillaryTubeLength}
+              onChange={(v) => updateField('capillaryTubeLength', v)}
+              min={0.1}
+              max={3}
+              step={0.1}
+              help={t('help.capillary')}
             />
-            <span>
-              <span className="text-xs font-semibold text-ink">{t('form.capillary')}</span>
-              <span className="text-2xs text-ink-3 block leading-snug">
-                {t('form.capillaryHelp')}
-              </span>
-            </span>
-          </label>
-
-          {params.capillaryDropEnabled && (
-            <div className="pl-6 max-w-[14rem] animate-fadeIn">
-              <NumberField
-                label={t('form.capillaryLength')}
-                value={params.capillaryTubeLength}
-                onChange={(v) => updateField('capillaryTubeLength', v)}
-                min={0.1}
-                max={3}
-                step={0.1}
-                    help={t('help.capillary')}
-              />
-            </div>
+          ) : (
+            <div className="field-cell" />
           )}
         </div>
+
+        <label className="flex items-start gap-2 cursor-pointer pt-0.5">
+          <input
+            type="checkbox"
+            checked={params.capillaryDropEnabled}
+            onChange={(e) => updateField('capillaryDropEnabled', e.target.checked)}
+            className="mt-0.5 w-4 h-4 rounded accent-brand border-line-2 shrink-0"
+          />
+          <span>
+            <span className="text-xs font-semibold text-ink">{t('form.capillary')}</span>
+            <span className="field-help block">{t('form.capillaryHelp')}</span>
+          </span>
+        </label>
       </div>
     </div>
   );

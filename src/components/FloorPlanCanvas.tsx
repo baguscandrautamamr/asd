@@ -1,12 +1,25 @@
-import React, { useState, useRef, useImperativeHandle, forwardRef, useMemo } from 'react';
-import { CalculationParams, CalculationResults, HoleScheduleItem } from '../types';
+import React, {
+  useState,
+  useRef,
+  useImperativeHandle,
+  forwardRef,
+  useMemo,
+  useCallback,
+  useEffect,
+} from 'react';
+import { CalculationParams, CalculationResults, HoleScheduleItem, Point2D } from '../types';
 import {
+  Check,
   Eye,
   Info,
   Layers,
   Maximize2,
+  PenLine,
+  RotateCcw,
   Server,
   Sliders,
+  Undo2,
+  X,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
@@ -55,6 +68,26 @@ interface PlanPalette {
   asdFace: string;
   asdFaceStroke: string;
   asdText: string;
+  draft: string;
+  draftWash: string;
+}
+
+/** Vertices land on a 250 mm grid, the practical tolerance for setting out
+ *  pipe against a ceiling grid. */
+const SNAP_M = 0.25;
+
+const snap = (value: number) => Math.round(value / SNAP_M) * SNAP_M;
+
+/**
+ * Constrains a new vertex to be orthogonal to the previous one. Sampling pipe
+ * runs along the ceiling grid, so only horizontal and vertical legs are
+ * offered; the axis with the larger movement wins.
+ */
+function orthogonalTo(previous: Point2D | undefined, point: Point2D): Point2D {
+  if (!previous) return point;
+  return Math.abs(point.x - previous.x) >= Math.abs(point.y - previous.y)
+    ? { x: point.x, y: previous.y }
+    : { x: previous.x, y: point.y };
 }
 
 /** Single light palette; fire-alarm red stays for pipes and the ASD unit. */
@@ -88,10 +121,12 @@ const PLAN: PlanPalette = {
   asdFace: '#f8faf8',
   asdFaceStroke: '#6b7a6b',
   asdText: '#14201a',
+  draft: '#4f8221',
+  draftWash: 'rgba(79, 130, 33, 0.05)',
 };
 
 export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasProps>(
-  ({ params, results }, ref) => {
+  ({ params, results, onUpdateParams }, ref) => {
     const { t, n } = useI18n();
     const palette = PLAN;
 
@@ -104,7 +139,14 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
     );
     const [hoveredHole, setHoveredHole] = useState<HoleScheduleItem | null>(null);
 
+    // Manual pipe routing: the operator draws the sampling run for one branch
+    // at a time; the manifold back to the detector stays automatic.
+    const [drawBranch, setDrawBranch] = useState<number | null>(null);
+    const [draft, setDraft] = useState<Point2D[]>([]);
+    const [cursor, setCursor] = useState<Point2D | null>(null);
+
     const svgRef = useRef<SVGSVGElement>(null);
+    const isDrawing = drawBranch !== null;
 
     useImperativeHandle(ref, () => ({
       getCanvasImageBase64: async () => {
@@ -144,11 +186,99 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
       },
     }));
 
+    const commitDraft = useCallback(
+      (points: Point2D[]) => {
+        if (drawBranch === null || !onUpdateParams) return;
+        const routes = { ...(params.customRoutes ?? {}) };
+        if (points.length >= 2) {
+          routes[String(drawBranch)] = points;
+        } else {
+          delete routes[String(drawBranch)];
+        }
+        onUpdateParams({ customRoutes: routes });
+        setDrawBranch(null);
+        setDraft([]);
+        setCursor(null);
+      },
+      [drawBranch, onUpdateParams, params.customRoutes]
+    );
+
+    const cancelDraft = useCallback(() => {
+      setDrawBranch(null);
+      setDraft([]);
+      setCursor(null);
+    }, []);
+
+    const clearRoute = useCallback(
+      (index: number) => {
+        if (!onUpdateParams) return;
+        const routes = { ...(params.customRoutes ?? {}) };
+        delete routes[String(index)];
+        onUpdateParams({ customRoutes: routes });
+      },
+      [onUpdateParams, params.customRoutes]
+    );
+
+    // Keyboard is the fastest way out of a drawing: Enter commits, Escape
+    // abandons, Backspace removes the last vertex.
+    useEffect(() => {
+      if (!isDrawing) return;
+      const onKey = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          cancelDraft();
+        } else if (event.key === 'Enter') {
+          event.preventDefault();
+          if (draft.length >= 2) commitDraft(draft);
+        } else if (event.key === 'Backspace') {
+          event.preventDefault();
+          setDraft((prev) => prev.slice(0, -1));
+        }
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+    }, [isDrawing, draft, commitDraft, cancelDraft]);
+
     const padding = 5; // metres of drawing margin around the room
     const viewWidth = params.length + padding * 2;
     const viewHeight = params.width + padding * 2;
     const toSvgX = (x: number) => padding + x;
     const toSvgY = (y: number) => padding + y;
+
+    const toRoom = useCallback(
+      (event: React.MouseEvent): Point2D | null => {
+        const svg = svgRef.current;
+        const ctm = svg?.getScreenCTM();
+        if (!svg || !ctm) return null;
+        const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(ctm.inverse());
+        return {
+          x: Math.min(params.length, Math.max(0, snap(local.x - padding))),
+          y: Math.min(params.width, Math.max(0, snap(local.y - padding))),
+        };
+      },
+      [params.length, params.width]
+    );
+
+    const handlePlanMove = (event: React.MouseEvent) => {
+      if (!isDrawing) return;
+      const point = toRoom(event);
+      if (point) setCursor(orthogonalTo(draft[draft.length - 1], point));
+    };
+
+    const handlePlanClick = (event: React.MouseEvent) => {
+      if (!isDrawing) return;
+      const point = toRoom(event);
+      if (!point) return;
+      const next = orthogonalTo(draft[draft.length - 1], point);
+      const last = draft[draft.length - 1];
+      // Ignore a repeated click on the same spot.
+      if (last && Math.abs(last.x - next.x) < 1e-6 && Math.abs(last.y - next.y) < 1e-6) return;
+      setDraft((prev) => [...prev, next]);
+    };
+
+    const handlePlanDoubleClick = () => {
+      if (isDrawing && draft.length >= 2) commitDraft(draft);
+    };
 
     // ASD unit placement on its mounting wall.
     const detOffset = Math.max(
@@ -262,6 +392,27 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
               </button>
             )}
 
+            {onUpdateParams && (
+              <>
+                <span className="w-px h-5 bg-line-2 mx-1" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isDrawing) cancelDraft();
+                    else {
+                      setDrawBranch(0);
+                      setDraft([]);
+                    }
+                  }}
+                  className={toolButton(isDrawing)}
+                  title={t('draw.hint')}
+                >
+                  <PenLine className="w-3.5 h-3.5" />
+                  {t('draw.start')}
+                </button>
+              </>
+            )}
+
             <span className="w-px h-5 bg-line-2 mx-1" />
 
             <button
@@ -294,6 +445,83 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
           </div>
         </div>
 
+        {isDrawing && (
+          <div className="absolute top-16 left-3 right-3 z-10 flex flex-wrap items-center gap-2 pointer-events-none">
+            <div className="glass rounded-xl p-1 shadow-lg flex flex-wrap items-center gap-1 pointer-events-auto">
+              <span className="text-2xs font-bold text-ink-3 uppercase px-1.5">
+                {t('draw.branch')}
+              </span>
+              {results.branches.map((branch) => (
+                <button
+                  key={branch.pipeIndex}
+                  type="button"
+                  onClick={() => {
+                    setDrawBranch(branch.pipeIndex);
+                    setDraft([]);
+                    setCursor(null);
+                  }}
+                  className={`px-2 py-1 text-2xs rounded-lg font-bold transition-colors ${
+                    drawBranch === branch.pipeIndex
+                      ? 'bg-brand text-white'
+                      : 'text-ink-2 hover:bg-surface-3'
+                  }`}
+                >
+                  {String.fromCharCode(65 + branch.pipeIndex)}
+                  {branch.isCustomRoute && <span className="ml-1 opacity-70">*</span>}
+                </button>
+              ))}
+
+              <span className="w-px h-4 bg-line-2 mx-0.5" />
+
+              <span className="text-2xs font-mono text-ink-3 px-1">
+                {t('draw.points', { n: draft.length })}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setDraft((prev) => prev.slice(0, -1))}
+                disabled={draft.length === 0}
+                title={t('draw.undo')}
+                className="p-1.5 rounded-lg text-ink-3 hover:text-ink hover:bg-surface-3 disabled:opacity-40 transition-colors"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => drawBranch !== null && clearRoute(drawBranch)}
+                title={t('draw.reset')}
+                className="p-1.5 rounded-lg text-ink-3 hover:text-ink hover:bg-surface-3 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={cancelDraft}
+                title={t('draw.cancel')}
+                className="p-1.5 rounded-lg text-ink-3 hover:text-bad hover:bg-surface-3 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => commitDraft(draft)}
+                disabled={draft.length < 2}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-2xs font-bold bg-brand hover:bg-brand-ink text-white disabled:opacity-40 transition-colors"
+              >
+                <Check className="w-3 h-3" />
+                {t('draw.finish')}
+              </button>
+            </div>
+
+            <span className="glass rounded-lg px-2.5 py-1 text-2xs text-ink-2 shadow pointer-events-auto">
+              {draft.length < 2 ? t('draw.needTwo') : t('draw.hint')}
+            </span>
+          </div>
+        )}
+
         {/* Drawing */}
         <div className="flex-1 w-full h-full overflow-auto flex items-center justify-center p-4">
           <div
@@ -304,8 +532,13 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
               ref={svgRef}
               xmlns="http://www.w3.org/2000/svg"
               viewBox={`0 0 ${viewWidth} ${viewHeight}`}
-              className="w-[880px] h-[550px] drop-shadow-2xl"
+              className={`w-[880px] h-[550px] drop-shadow-2xl ${
+                isDrawing ? 'cursor-crosshair' : ''
+              }`}
               style={{ background: palette.page }}
+              onMouseMove={handlePlanMove}
+              onClick={handlePlanClick}
+              onDoubleClick={handlePlanDoubleClick}
             >
               <defs>
                 <pattern id="meter-grid" width="1" height="1" patternUnits="userSpaceOnUse">
@@ -554,7 +787,7 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
                       x={toSvgX(
                         branch.startPoint.x + (branch.endPoint.x - branch.startPoint.x) * 0.15
                       )}
-                      y={toSvgY(branch.startPoint.y) - 0.3}
+                      y={toSvgY(branch.startPoint.y) - 0.95}
                       fontSize="0.35"
                       fontWeight="bold"
                       fontFamily="JetBrains Mono, monospace"
@@ -566,7 +799,7 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
                 ))}
               </g>
 
-              <g id="sampling-holes">
+              <g id="sampling-holes" style={isDrawing ? { pointerEvents: 'none' } : undefined}>
                 {results.holes.map((hole) => {
                   const isHovered = hoveredHole?.id === hole.id;
                   const hx = toSvgX(hole.x);
@@ -684,6 +917,76 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
                 </text>
               </g>
 
+              {isDrawing && (
+                <g id="draw-layer" style={{ pointerEvents: 'none' }}>
+                  {/* Snap grid, so the operator can see where vertices land. */}
+                  <rect
+                    x={padding}
+                    y={padding}
+                    width={params.length}
+                    height={params.width}
+                    fill={palette.draftWash}
+                  />
+
+                  {draft.length > 0 && (
+                    <polyline
+                      points={draft.map((p) => `${toSvgX(p.x)},${toSvgY(p.y)}`).join(' ')}
+                      fill="none"
+                      stroke={palette.draft}
+                      strokeWidth="0.16"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
+
+                  {draft.length > 0 && cursor && (
+                    <line
+                      x1={toSvgX(draft[draft.length - 1].x)}
+                      y1={toSvgY(draft[draft.length - 1].y)}
+                      x2={toSvgX(cursor.x)}
+                      y2={toSvgY(cursor.y)}
+                      stroke={palette.draft}
+                      strokeWidth="0.12"
+                      strokeDasharray="0.3, 0.2"
+                      strokeLinecap="round"
+                    />
+                  )}
+
+                  {draft.map((point, index) => (
+                    <circle
+                      key={`draft-${index}`}
+                      cx={toSvgX(point.x)}
+                      cy={toSvgY(point.y)}
+                      r="0.18"
+                      fill={index === 0 ? palette.draft : palette.room}
+                      stroke={palette.draft}
+                      strokeWidth="0.07"
+                    />
+                  ))}
+
+                  {cursor && (
+                    <g>
+                      <circle
+                        cx={toSvgX(cursor.x)}
+                        cy={toSvgY(cursor.y)}
+                        r="0.12"
+                        fill={palette.draft}
+                      />
+                      <text
+                        x={toSvgX(cursor.x) + 0.35}
+                        y={toSvgY(cursor.y) - 0.3}
+                        fontSize="0.34"
+                        fontFamily="JetBrains Mono, monospace"
+                        fill={palette.draft}
+                        fontWeight="bold"
+                      >
+                        {cursor.x.toFixed(2)} , {cursor.y.toFixed(2)}
+                      </text>
+                    </g>
+                  )}
+                </g>
+              )}
+
               <g
                 fontSize="0.45"
                 fontWeight="bold"
@@ -775,6 +1078,17 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
               <span className="w-2 h-2 rounded-full bg-brand/20 border border-brand/40" />
               {t('plan.legendCoverage')}
             </span>
+            {results.branches.some((branch) => branch.isCustomRoute) && (
+              <span className="flex items-center gap-1 text-brand-ink font-semibold">
+                <PenLine className="w-3 h-3" />
+                {t('draw.custom', {
+                  list: results.branches
+                    .filter((branch) => branch.isCustomRoute)
+                    .map((branch) => String.fromCharCode(65 + branch.pipeIndex))
+                    .join(', '),
+                })}
+              </span>
+            )}
           </div>
         </div>
       </div>
