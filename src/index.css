@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+/*
+ * Dual-mode theming.
+ * Tailwind v4 emits utilities that reference the CSS variables declared in
+ * @theme, so overriding those variables under .dark is enough to repaint the
+ * whole application without duplicating a single utility class.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Surfaces */
+  --color-canvas: #e9edf4;
+  --color-surface: #ffffff;
+  --color-surface-2: #f5f8fc;
+  --color-surface-3: #e7ecf4;
+
+  /* Lines */
+  --color-line: #dae1ec;
+  --color-line-2: #c2ccdc;
+
+  /* Text */
+  --color-ink: #0c1424;
+  --color-ink-2: #45526a;
+  --color-ink-3: #7a889f;
+
+  /* Brand (fire protection red) */
+  --color-brand: #e11d48;
+  --color-brand-2: #f43f5e;
+  --color-brand-ink: #9f1239;
+  --color-brand-wash: #fff1f3;
+
+  /* Status */
+  --color-ok: #047857;
+  --color-ok-wash: #ecfdf5;
+  --color-warn: #b45309;
+  --color-warn-wash: #fffbeb;
+  --color-bad: #be123c;
+  --color-bad-wash: #fff1f2;
+  --color-info: #0369a1;
+  --color-info-wash: #f0f9ff;
+
+  /* Scene colors consumed by the Three.js viewport */
+  --color-scene-bg: #dfe6f0;
+  --color-scene-floor: #cbd5e4;
+  --color-scene-grid: #94a3b8;
+}
+
+.dark {
+  --color-canvas: #060a12;
+  --color-surface: #0d1424;
+  --color-surface-2: #131c2e;
+  --color-surface-3: #1a2439;
+
+  --color-line: #223049;
+  --color-line-2: #32405c;
+
+  --color-ink: #edf2fb;
+  --color-ink-2: #a4b2ca;
+  --color-ink-3: #6c7c99;
+
+  --color-brand: #f43f5e;
+  --color-brand-2: #fb7185;
+  --color-brand-ink: #fda4af;
+  --color-brand-wash: #2a0d18;
+
+  --color-ok: #34d399;
+  --color-ok-wash: #062a20;
+  --color-warn: #fbbf24;
+  --color-warn-wash: #2c1e04;
+  --color-bad: #fb7185;
+  --color-bad-wash: #2d0d16;
+  --color-info: #38bdf8;
+  --color-info-wash: #04222f;
+
+  --color-scene-bg: #060a12;
+  --color-scene-floor: #0f1728;
+  --color-scene-grid: #253349;
+}
+
+html {
+  color-scheme: light;
+}
+
+.dark html,
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------------------
+ * Depth system. The app is a 3D design tool, so the chrome carries real
+ * elevation instead of flat borders: a soft ambient shadow, a tight contact
+ * shadow, and a 1px top highlight that reads as a bevel under the light.
+ * ------------------------------------------------------------------------- */
+@layer components {
+  .surface-card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 1rem;
+    box-shadow:
+      0 1px 1px rgb(15 23 42 / 0.04),
+      0 8px 24px -12px rgb(15 23 42 / 0.18);
+  }
+
+  .dark .surface-card {
+    box-shadow:
+      0 1px 0 0 rgb(255 255 255 / 0.04) inset,
+      0 18px 40px -24px rgb(0 0 0 / 0.9);
+  }
+
+  .surface-raised {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-surface) 100%, white 6%),
+      var(--color-surface)
+    );
+  }
+
+  .dark .surface-raised {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-surface) 92%, white 8%),
+      var(--color-surface)
+    );
+  }
+
+  /* Glass chrome used by floating toolbars over the 3D viewport. */
+  .glass {
+    background-color: color-mix(in srgb, var(--color-surface) 82%, transparent);
+    backdrop-filter: blur(14px) saturate(1.3);
+    border: 1px solid color-mix(in srgb, var(--color-line-2) 70%, transparent);
+  }
+
+  /* Lifts a card toward the viewer on hover — the tactile cue that this is a
+     spatial tool, not a form. */
+  .lift {
+    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 0.22s ease;
+  }
+
+  .lift:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 2px 2px rgb(15 23 42 / 0.05),
+      0 18px 36px -16px rgb(15 23 42 / 0.32);
+  }
+
+  .dark .lift:hover {
+    box-shadow:
+      0 1px 0 0 rgb(255 255 255 / 0.06) inset,
+      0 26px 50px -22px rgb(0 0 0 / 1);
+  }
+
+  .field {
+    width: 100%;
+    border-radius: 0.6rem;
+    border: 1px solid var(--color-line-2);
+    background-color: var(--color-surface-2);
+    color: var(--color-ink);
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8125rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .field:focus {
+    outline: none;
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 22%, transparent);
+  }
+
+  .field option {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.25s ease-out forwards;
+}
