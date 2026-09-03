@@ -1,3 +1,5 @@
+import type { TranslationKey } from './i18n/translations';
+
 export type RoomType =
   | 'data_center'
   | 'clean_room'
@@ -83,23 +85,33 @@ export interface PipeBranchData {
   holes: HoleScheduleItem[];
 }
 
+/**
+ * Compliance rows carry translation keys rather than rendered sentences so the
+ * calculator stays language-agnostic and the UI (and PDF) can render either
+ * language from the same result object.
+ */
 export interface ComplianceCheck {
   id: string;
-  rule: string;
+  ruleKey: TranslationKey;
   standardRef: string;
   status: 'pass' | 'warning' | 'fail';
   actualValue: string;
   limitValue: string;
-  notes: string;
+  noteKey: TranslationKey;
+  noteVars?: Record<string, string | number>;
 }
+
+export type BOMCategory = 'pipe' | 'fittings' | 'hardware' | 'accessories' | 'detector';
 
 export interface BOMItem {
   itemCode: string;
-  category: 'pipe' | 'fittings' | 'hardware' | 'accessories' | 'detector';
-  description: string;
+  category: BOMCategory;
+  descKey: TranslationKey;
+  descVars?: Record<string, string | number>;
   quantity: number;
-  unit: string;
-  remarks?: string;
+  unitKey: TranslationKey;
+  remarkKey?: TranslationKey;
+  remarkVars?: Record<string, string | number>;
 }
 
 export interface CalculationResults {
@@ -155,8 +167,13 @@ export interface ActivityLog {
   projectId: string;
   userId: string;
   userName: string;
+  /** Human-readable fallback written by the server. */
   action: string;
   details: string;
+  /** Optional translation keys, set for activities the app itself generates. */
+  actionKey?: TranslationKey;
+  detailsKey?: TranslationKey;
+  detailsVars?: Record<string, string | number>;
   timestamp: number;
 }
 

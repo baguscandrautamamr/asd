@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Runtime database seeded by server.ts on first boot
+data/*.json

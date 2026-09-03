@@ -8,16 +8,21 @@ import {
   WallLocation,
   PipeOrientation,
 } from '../types';
+import { Cpu, Maximize, Wind } from 'lucide-react';
+import { useI18n } from '../context/I18nContext';
 import {
-  Sliders,
-  Wind,
-  Box,
-  Cpu,
-  Activity,
-  Maximize,
-  ShieldAlert,
-  Settings2,
-} from 'lucide-react';
+  ABS_MATERIAL,
+  CPVC_MATERIAL,
+  UPVC_MATERIAL,
+  ceilingKey,
+  detectorKey,
+  orientationKey,
+  roomTypeKey,
+  sensitivityKey,
+  speedKey,
+  wallKey,
+} from '../i18n/labels';
+import type { TranslationKey } from '../i18n/translations';
 
 interface ParameterFormProps {
   params: CalculationParams;
@@ -25,88 +30,112 @@ interface ParameterFormProps {
   onQuickPreset: (presetName: string) => void;
 }
 
+const CEILING_TYPES: CeilingType[] = ['flat', 'suspended_grid', 'open_beam', 'sloped'];
+const ROOM_TYPES: RoomType[] = [
+  'data_center',
+  'clean_room',
+  'telecom',
+  'warehouse',
+  'archive',
+  'general_commercial',
+  'cold_storage',
+  'high_ceiling',
+];
+const SENSITIVITY_CLASSES: SensitivityClass[] = [
+  'Class A (High Sensitivity)',
+  'Class B (Enhanced)',
+  'Class C (Standard)',
+];
+const DETECTOR_MODELS: DetectorModel[] = [
+  'VESDA VEP-A00-P (4-Pipe)',
+  'VESDA VEU-A00 (High-Sensitivity 4-Pipe)',
+  'VESDA VLS (4-Pipe Sector)',
+  'VESDA VLC (Single Pipe)',
+  'Securiton ASD 535 (2-Pipe)',
+  'Wagner TITANUS (2-Pipe)',
+];
+const WALLS: WallLocation[] = ['west', 'north', 'east', 'south'];
+const ORIENTATIONS: PipeOrientation[] = ['lengthwise', 'widthwise'];
+const MATERIALS: { value: string; key: TranslationKey }[] = [
+  { value: CPVC_MATERIAL, key: 'opt.material.cpvc' },
+  { value: ABS_MATERIAL, key: 'opt.material.abs' },
+  { value: UPVC_MATERIAL, key: 'opt.material.upvc' },
+];
+
+const SectionHeading: React.FC<{ icon: React.ReactNode; children: React.ReactNode }> = ({
+  icon,
+  children,
+}) => (
+  <div className="flex items-center gap-2 text-[11px] font-bold text-ink-2 uppercase tracking-wider border-b border-line pb-1.5">
+    <span className="text-brand">{icon}</span>
+    {children}
+  </div>
+);
+
+const FieldLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <label className="block text-xs font-medium text-ink-2 mb-1">{children}</label>
+);
+
 export const ParameterForm: React.FC<ParameterFormProps> = ({
   params,
   onChange,
   onQuickPreset,
 }) => {
+  const { t, n } = useI18n();
+
   const updateField = <K extends keyof CalculationParams>(
     field: K,
     value: CalculationParams[K]
   ) => {
-    onChange({
-      ...params,
-      [field]: value,
-    });
+    onChange({ ...params, [field]: value });
   };
 
+  const presets: { id: string; label: string; emoji: string; match: RoomType }[] = [
+    { id: 'data_center', label: t('form.presets.dataCenter'), emoji: '🏢', match: 'data_center' },
+    { id: 'clean_room', label: t('form.presets.cleanRoom'), emoji: '🧪', match: 'clean_room' },
+    { id: 'warehouse', label: t('form.presets.warehouse'), emoji: '🏭', match: 'warehouse' },
+    {
+      id: 'commercial',
+      label: t('form.presets.commercial'),
+      emoji: '🏦',
+      match: 'general_commercial',
+    },
+  ];
+
   return (
-    <div className="flex flex-col gap-5 text-slate-800 text-sm">
-      {/* Quick Presets */}
-      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">
-          NFPA 72 Quick Facility Presets
-        </label>
+    <div className="flex flex-col gap-5 text-sm">
+      {/* Quick presets */}
+      <div className="bg-surface-2 p-3.5 rounded-xl border border-line">
+        <span className="text-[11px] font-bold text-ink-3 uppercase tracking-wider block mb-2">
+          {t('form.presets.title')}
+        </span>
         <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => onQuickPreset('data_center')}
-            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg text-left transition-all border ${
-              params.roomType === 'data_center'
-                ? 'bg-rose-50 border-rose-300 text-rose-700 font-semibold shadow-xs'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-            }`}
-          >
-            🏢 Data Center Hall
-          </button>
-          <button
-            type="button"
-            onClick={() => onQuickPreset('clean_room')}
-            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg text-left transition-all border ${
-              params.roomType === 'clean_room'
-                ? 'bg-rose-50 border-rose-300 text-rose-700 font-semibold shadow-xs'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-            }`}
-          >
-            🧪 Cleanroom ISO 5
-          </button>
-          <button
-            type="button"
-            onClick={() => onQuickPreset('warehouse')}
-            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg text-left transition-all border ${
-              params.roomType === 'warehouse'
-                ? 'bg-rose-50 border-rose-300 text-rose-700 font-semibold shadow-xs'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-            }`}
-          >
-            🏭 High-Bay Warehouse
-          </button>
-          <button
-            type="button"
-            onClick={() => onQuickPreset('commercial')}
-            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg text-left transition-all border ${
-              params.roomType === 'general_commercial'
-                ? 'bg-rose-50 border-rose-300 text-rose-700 font-semibold shadow-xs'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-            }`}
-          >
-            🏦 Commercial Office
-          </button>
+          {presets.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => onQuickPreset(preset.id)}
+              className={`px-2.5 py-1.5 text-xs font-medium rounded-lg text-left transition-all border lift ${
+                params.roomType === preset.match
+                  ? 'bg-brand-wash border-brand text-brand font-semibold'
+                  : 'bg-surface border-line text-ink-2 hover:border-line-2'
+              }`}
+            >
+              <span aria-hidden="true">{preset.emoji}</span> {preset.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* 1. Room Dimensions & Geometry */}
+      {/* 1. Geometry */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200 pb-1.5">
-          <Maximize className="w-3.5 h-3.5 text-rose-600" />
-          1. Room Geometry & Structure
-        </div>
+        <SectionHeading icon={<Maximize className="w-3.5 h-3.5" />}>
+          {t('form.section1')}
+        </SectionHeading>
 
         <div className="grid grid-cols-3 gap-2.5">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Length (m)
-            </label>
+            <FieldLabel>{t('form.length')}</FieldLabel>
             <input
               type="number"
               min="4"
@@ -114,13 +143,11 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
               step="0.5"
               value={params.length}
               onChange={(e) => updateField('length', Math.max(4, parseFloat(e.target.value) || 4))}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 font-mono text-sm bg-white"
+              className="field font-mono"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Width (m)
-            </label>
+            <FieldLabel>{t('form.width')}</FieldLabel>
             <input
               type="number"
               min="3"
@@ -128,78 +155,65 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
               step="0.5"
               value={params.width}
               onChange={(e) => updateField('width', Math.max(3, parseFloat(e.target.value) || 3))}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 font-mono text-sm bg-white"
+              className="field font-mono"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Height (m)
-            </label>
+            <FieldLabel>{t('form.height')}</FieldLabel>
             <input
               type="number"
               min="2.0"
               max="25"
               step="0.1"
               value={params.height}
-              onChange={(e) => updateField('height', Math.max(2.0, parseFloat(e.target.value) || 2.0))}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 font-mono text-sm bg-white"
+              onChange={(e) => updateField('height', Math.max(2, parseFloat(e.target.value) || 2))}
+              className="field font-mono"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Ceiling Profile
-            </label>
+            <FieldLabel>{t('form.ceilingProfile')}</FieldLabel>
             <select
               value={params.ceilingType}
               onChange={(e) => updateField('ceilingType', e.target.value as CeilingType)}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 text-xs bg-white"
+              className="field text-xs"
             >
-              <option value="flat">Flat Ceiling (Smooth)</option>
-              <option value="suspended_grid">Suspended Grid / Acoustic Tile</option>
-              <option value="open_beam">Open Beam / Joist</option>
-              <option value="sloped">Sloped / Pitched Roof</option>
+              {CEILING_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {t(ceilingKey[value])}
+                </option>
+              ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Room Hazard Type
-            </label>
+            <FieldLabel>{t('form.roomType')}</FieldLabel>
             <select
               value={params.roomType}
               onChange={(e) => updateField('roomType', e.target.value as RoomType)}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 text-xs bg-white"
+              className="field text-xs"
             >
-              <option value="data_center">Data Center / Server Hall</option>
-              <option value="clean_room">Cleanroom / Pharma ISO</option>
-              <option value="telecom">Telecommunication Switch</option>
-              <option value="warehouse">Warehouse & Logistics</option>
-              <option value="archive">Library / Document Archive</option>
-              <option value="general_commercial">Commercial Office</option>
-              <option value="cold_storage">Cold Storage Facility</option>
-              <option value="high_ceiling">High-Ceiling Atrium</option>
+              {ROOM_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {t(roomTypeKey[value])}
+                </option>
+              ))}
             </select>
           </div>
         </div>
       </div>
 
-      {/* 2. Airflow & Ventilation Dynamics */}
+      {/* 2. Airflow */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200 pb-1.5">
-          <Wind className="w-3.5 h-3.5 text-rose-600" />
-          2. Airflow Dynamics (NFPA 72 Sec. 17.7.6)
-        </div>
+        <SectionHeading icon={<Wind className="w-3.5 h-3.5" />}>{t('form.section2')}</SectionHeading>
 
         <div className="grid grid-cols-2 gap-2.5">
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="text-xs font-medium text-slate-600">
-                Air Changes/Hour (ACH)
-              </label>
-              <span className="text-xs font-mono font-bold text-rose-600">
+              <label className="text-xs font-medium text-ink-2">{t('form.ach')}</label>
+              <span className="text-xs font-mono font-bold text-brand">
                 {params.airChangesPerHour} ACH
               </span>
             </div>
@@ -209,20 +223,16 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
               max="60"
               step="1"
               value={params.airChangesPerHour}
-              onChange={(e) => updateField('airChangesPerHour', parseInt(e.target.value) || 1)}
-              className="w-full accent-rose-600 cursor-pointer"
+              onChange={(e) => updateField('airChangesPerHour', parseInt(e.target.value, 10) || 1)}
+              className="w-full accent-brand cursor-pointer"
             />
-            <span className="text-[10px] text-slate-500 block">
-              {params.airChangesPerHour > 15
-                ? '⚡ High Airflow (Reduced hole spacing required)'
-                : 'Standard airflow ventilation'}
+            <span className="text-[10px] text-ink-3 block mt-0.5">
+              {params.airChangesPerHour > 15 ? t('form.achHigh') : t('form.achStandard')}
             </span>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Air Velocity (m/s)
-            </label>
+            <FieldLabel>{t('form.velocity')}</FieldLabel>
             <input
               type="number"
               min="0.1"
@@ -232,45 +242,34 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
               onChange={(e) =>
                 updateField('airflowVelocity', Math.max(0.1, parseFloat(e.target.value) || 0.1))
               }
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 font-mono text-sm bg-white"
+              className="field font-mono"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">
-            Sensitivity Classification
-          </label>
+          <FieldLabel>{t('form.sensitivity')}</FieldLabel>
           <select
             value={params.sensitivityClass}
             onChange={(e) => updateField('sensitivityClass', e.target.value as SensitivityClass)}
-            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 text-xs bg-white font-medium"
+            className="field text-xs font-medium"
           >
-            <option value="Class A (High Sensitivity)">
-              Class A: High Sensitivity (Transport ≤ 60s, Data Center / Cleanroom)
-            </option>
-            <option value="Class B (Enhanced)">
-              Class B: Enhanced Sensitivity (Transport ≤ 90s, Archive / Equipment)
-            </option>
-            <option value="Class C (Standard)">
-              Class C: Standard Sensitivity (Transport ≤ 120s, NFPA 72 Baseline)
-            </option>
+            {SENSITIVITY_CLASSES.map((value) => (
+              <option key={value} value={value}>
+                {t(sensitivityKey[value])}
+              </option>
+            ))}
           </select>
         </div>
       </div>
 
-      {/* 3. ASD Detector & Hardware Selection */}
+      {/* 3. Detector & piping */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200 pb-1.5">
-          <Cpu className="w-3.5 h-3.5 text-rose-600" />
-          3. ASD Detector & Piping Specification
-        </div>
+        <SectionHeading icon={<Cpu className="w-3.5 h-3.5" />}>{t('form.section3')}</SectionHeading>
 
         <div className="grid grid-cols-2 gap-2.5">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              ASD Detector Model
-            </label>
+            <FieldLabel>{t('form.detectorModel')}</FieldLabel>
             <select
               value={params.detectorModel}
               onChange={(e) => {
@@ -279,42 +278,37 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                 if (model.includes('4-Pipe')) pipes = 4;
                 else if (model.includes('2-Pipe')) pipes = 2;
                 else if (model.includes('Single Pipe')) pipes = 1;
-                onChange({
-                  ...params,
-                  detectorModel: model,
-                  pipeCount: pipes,
-                });
+                onChange({ ...params, detectorModel: model, pipeCount: pipes });
               }}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 text-xs bg-white font-medium"
+              className="field text-xs font-medium"
             >
-              <option value="VESDA VEP-A00-P (4-Pipe)">VESDA VEP-A00-P (4-Pipe)</option>
-              <option value="VESDA VEU-A00 (High-Sensitivity 4-Pipe)">
-                VESDA VEU-A00 (Ultra High Sensitivity)
-              </option>
-              <option value="VESDA VLS (4-Pipe Sector)">VESDA VLS (4-Pipe Sector Scan)</option>
-              <option value="VESDA VLC (Single Pipe)">VESDA VLC (Compact Single Pipe)</option>
-              <option value="Securiton ASD 535 (2-Pipe)">Securiton ASD 535 (2-Pipe High Power)</option>
-              <option value="Wagner TITANUS (2-Pipe)">Wagner TITANUS (2-Pipe High Airflow)</option>
+              {DETECTOR_MODELS.map((value) => (
+                <option key={value} value={value}>
+                  {t(detectorKey[value])}
+                </option>
+              ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Active Pipe Branches
-            </label>
-            <div className="flex rounded-lg border border-slate-300 overflow-hidden">
-              {[1, 2, 3, 4].map((cnt) => (
+            <FieldLabel>{t('form.pipeBranches')}</FieldLabel>
+            <div className="flex rounded-lg border border-line-2 overflow-hidden">
+              {[1, 2, 3, 4].map((count) => (
                 <button
-                  key={cnt}
+                  key={count}
                   type="button"
-                  onClick={() => updateField('pipeCount', cnt)}
-                  className={`flex-1 py-1.5 text-xs font-bold transition-colors ${
-                    params.pipeCount === cnt
-                      ? 'bg-rose-600 text-white'
-                      : 'bg-white text-slate-700 hover:bg-slate-100'
+                  onClick={() => updateField('pipeCount', count)}
+                  title={t(count === 1 ? 'form.pipeCountOne' : 'form.pipeCountMany', { n: count })}
+                  aria-label={t(count === 1 ? 'form.pipeCountOne' : 'form.pipeCountMany', {
+                    n: count,
+                  })}
+                  className={`flex-1 py-1.5 text-xs font-bold font-mono transition-colors ${
+                    params.pipeCount === count
+                      ? 'bg-brand text-white'
+                      : 'bg-surface-2 text-ink-2 hover:bg-surface-3'
                   }`}
                 >
-                  {cnt} Pipe{cnt > 1 ? 's' : ''}
+                  {count}
                 </button>
               ))}
             </div>
@@ -323,44 +317,41 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
 
         <div className="grid grid-cols-2 gap-2.5">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Aspirator Fan Speed
-            </label>
+            <FieldLabel>{t('form.aspirator')}</FieldLabel>
             <select
               value={params.aspiratorSpeed}
               onChange={(e) =>
                 updateField('aspiratorSpeed', e.target.value as 'low' | 'medium' | 'high')
               }
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 text-xs bg-white font-medium"
+              className="field text-xs font-medium"
             >
-              <option value="high">High Speed (~3.4 m/s airflow)</option>
-              <option value="medium">Medium Speed (~2.8 m/s airflow)</option>
-              <option value="low">Low Speed (~2.2 m/s airflow)</option>
+              {(['high', 'medium', 'low'] as const).map((value) => (
+                <option key={value} value={value}>
+                  {t(speedKey[value])}
+                </option>
+              ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Pipe Material
-            </label>
+            <FieldLabel>{t('form.pipeMaterial')}</FieldLabel>
             <select
               value={params.pipeMaterial}
               onChange={(e) => updateField('pipeMaterial', e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 text-xs bg-white"
+              className="field text-xs"
             >
-              <option value='CPVC Red Fire Alarm 25mm (3/4")'>CPVC Red Fire Alarm 25mm (3/4")</option>
-              <option value="ABS Red 25mm">ABS Fire Retardant Red 25mm</option>
-              <option value="UPVC Flame Retardant 25mm">UPVC Flame Retardant 25mm</option>
+              {MATERIALS.map((material) => (
+                <option key={material.value} value={material.value}>
+                  {t(material.key)}
+                </option>
+              ))}
             </select>
           </div>
         </div>
 
-        {/* Detector Mount Location */}
-        <div className="grid grid-cols-2 gap-2.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+        <div className="grid grid-cols-2 gap-2.5 bg-surface-2 p-2.5 rounded-lg border border-line">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-              ASD Panel Wall Mount
-            </label>
+            <FieldLabel>{t('form.wallMount')}</FieldLabel>
             <select
               value={params.detectorLocation.wall}
               onChange={(e) =>
@@ -369,50 +360,68 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                   wall: e.target.value as WallLocation,
                 })
               }
-              className="w-full px-2 py-1 rounded border border-slate-300 text-slate-900 text-xs bg-white"
+              className="field text-xs"
             >
-              <option value="west">West Wall</option>
-              <option value="north">North Wall</option>
-              <option value="east">East Wall</option>
-              <option value="south">South Wall</option>
+              {WALLS.map((value) => (
+                <option key={value} value={value}>
+                  {t(wallKey[value])}
+                </option>
+              ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-              Pipe Orientation
-            </label>
+            <FieldLabel>{t('form.orientation')}</FieldLabel>
             <select
               value={params.pipeRunOrientation}
-              onChange={(e) =>
-                updateField('pipeRunOrientation', e.target.value as PipeOrientation)
-              }
-              className="w-full px-2 py-1 rounded border border-slate-300 text-slate-900 text-xs bg-white"
+              onChange={(e) => updateField('pipeRunOrientation', e.target.value as PipeOrientation)}
+              className="field text-xs"
             >
-              <option value="lengthwise">Lengthwise (Parallel to Length)</option>
-              <option value="widthwise">Widthwise (Parallel to Width)</option>
+              {ORIENTATIONS.map((value) => (
+                <option key={value} value={value}>
+                  {t(orientationKey[value])}
+                </option>
+              ))}
             </select>
           </div>
         </div>
 
-        {/* Capillary Drop Checkbox */}
-        <div className="pt-1">
+        <div className="pt-1 space-y-2.5">
           <label className="flex items-start gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={params.capillaryDropEnabled}
               onChange={(e) => updateField('capillaryDropEnabled', e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded text-rose-600 border-slate-300 focus:ring-rose-500"
+              className="mt-0.5 w-4 h-4 rounded accent-brand border-line-2"
             />
-            <div>
-              <span className="text-xs font-medium text-slate-800">
-                Enable Capillary Drop Tubes (Through False Ceiling)
-              </span>
-              <p className="text-[11px] text-slate-500">
-                Pipes run above ceiling with 10mm capillary tubes dropping down to flush sampling points.
-              </p>
-            </div>
+            <span>
+              <span className="text-xs font-medium text-ink">{t('form.capillary')}</span>
+              <span className="text-[11px] text-ink-3 block">{t('form.capillaryHelp')}</span>
+            </span>
           </label>
+
+          {params.capillaryDropEnabled && (
+            <div className="pl-6 max-w-[12rem] animate-fadeIn">
+              <FieldLabel>{t('form.capillaryLength')}</FieldLabel>
+              <input
+                type="number"
+                min="0.1"
+                max="3"
+                step="0.1"
+                value={params.capillaryTubeLength}
+                onChange={(e) =>
+                  updateField(
+                    'capillaryTubeLength',
+                    Math.min(3, Math.max(0.1, parseFloat(e.target.value) || 0.1))
+                  )
+                }
+                className="field font-mono"
+              />
+              <span className="text-[10px] text-ink-3 block mt-1">
+                {n(params.capillaryTubeLength, 1)} m
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>

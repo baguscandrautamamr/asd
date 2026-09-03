@@ -1,20 +1,8 @@
 import React, { useState } from 'react';
-import { ASDProject, ASDScenario, ProjectStatus, CalculationParams } from '../types';
-import {
-  FolderKanban,
-  Plus,
-  Search,
-  CheckCircle,
-  Clock,
-  Building2,
-  MapPin,
-  User,
-  Trash2,
-  Copy,
-  FileCheck,
-  X,
-  ExternalLink,
-} from 'lucide-react';
+import { ASDProject, ASDScenario, ProjectStatus } from '../types';
+import { Building2, Clock, Copy, FolderKanban, MapPin, Plus, Search, Trash2, X } from 'lucide-react';
+import { useI18n } from '../context/I18nContext';
+import { detectorKey, statusKey } from '../i18n/labels';
 
 interface ProjectManagerModalProps {
   isOpen: boolean;
@@ -37,6 +25,15 @@ interface ProjectManagerModalProps {
   onSelectScenario: (scenarioId: string) => void;
 }
 
+const STATUSES: ProjectStatus[] = ['draft', 'review', 'approved', 'as-built'];
+
+const STATUS_CLASSES: Record<ProjectStatus, string> = {
+  draft: 'bg-surface-3 text-ink-2 border-line-2',
+  review: 'bg-warn-wash text-warn border-warn/40',
+  approved: 'bg-ok-wash text-ok border-ok/40',
+  'as-built': 'bg-info-wash text-info border-info/40',
+};
+
 export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
   isOpen,
   onClose,
@@ -51,34 +48,34 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
   onSaveScenario,
   onSelectScenario,
 }) => {
+  const { t, n, d } = useI18n();
   const [activeTab, setActiveTab] = useState<'projects' | 'scenarios' | 'new'>('projects');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  // New Project Form State
   const [newTitle, setNewTitle] = useState('');
   const [newClient, setNewClient] = useState('');
   const [newContact, setNewContact] = useState('');
   const [newFacility, setNewFacility] = useState('');
   const [newLocation, setNewLocation] = useState('Indonesia');
 
-  // Save Scenario Form State
   const [newScenarioName, setNewScenarioName] = useState('');
   const [newScenarioRev, setNewScenarioRev] = useState('Rev 1.1');
 
   if (!isOpen) return null;
 
-  const filteredProjects = projects.filter((p) => {
+  const filteredProjects = projects.filter((project) => {
+    const query = searchQuery.toLowerCase();
     const matchesSearch =
-      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.code.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
+      project.title.toLowerCase().includes(query) ||
+      project.clientName.toLowerCase().includes(query) ||
+      project.code.toLowerCase().includes(query);
+    const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
     if (!newTitle.trim() || !newClient.trim()) return;
     onCreateProject({
       title: newTitle.trim(),
@@ -94,181 +91,169 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
     setActiveTab('projects');
   };
 
-  const handleSaveScenarioSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveScenarioSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
     if (!newScenarioName.trim()) return;
     onSaveScenario(newScenarioName.trim(), newScenarioRev.trim() || 'Rev 1.0');
     setNewScenarioName('');
     setActiveTab('scenarios');
   };
 
+  const tabClass = (active: boolean) =>
+    `pb-2.5 px-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-1 ${
+      active ? 'border-brand text-brand' : 'border-transparent text-ink-3 hover:text-ink'
+    }`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="surface-card w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+        <div className="px-6 py-4 bg-surface-3 border-b border-line flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-rose-600 flex items-center justify-center text-white">
+            <span className="w-9 h-9 rounded-xl bg-brand text-white flex items-center justify-center">
               <FolderKanban className="w-5 h-5" />
-            </div>
+            </span>
             <div>
-              <h3 className="font-bold text-base">Project & Scenario Management</h3>
-              <p className="text-xs text-slate-400">
-                Customer calculation records, revisions, and status tracking.
-              </p>
+              <h3 className="font-bold text-base text-ink">{t('pm.title')}</h3>
+              <p className="text-xs text-ink-3">{t('pm.subtitle')}</p>
             </div>
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            aria-label={t('pm.close')}
+            className="p-1.5 rounded-lg text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-6 pt-2">
+        <div className="flex border-b border-line bg-surface-2 px-6 pt-2">
           <button
+            type="button"
             onClick={() => setActiveTab('projects')}
-            className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-colors ${
-              activeTab === 'projects'
-                ? 'border-rose-600 text-rose-600'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
+            className={tabClass(activeTab === 'projects')}
           >
-            All Projects ({projects.length})
+            {t('pm.tabProjects', { n: projects.length })}
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('scenarios')}
-            className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-colors ${
-              activeTab === 'scenarios'
-                ? 'border-rose-600 text-rose-600'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
+            className={tabClass(activeTab === 'scenarios')}
           >
-            Scenarios & Revisions ({scenarios.length})
+            {t('pm.tabScenarios', { n: scenarios.length })}
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('new')}
-            className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-colors flex items-center gap-1 ${
-              activeTab === 'new'
-                ? 'border-rose-600 text-rose-600'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
+            className={tabClass(activeTab === 'new')}
           >
             <Plus className="w-3.5 h-3.5" />
-            New Project
+            {t('pm.tabNew')}
           </button>
         </div>
 
-        {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* TAB 1: ALL PROJECTS LIST */}
           {activeTab === 'projects' && (
             <div className="space-y-4">
-              {/* Search and Filters */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="relative flex-1 min-w-[200px]">
-                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-ink-3 pointer-events-none" />
                   <input
                     type="text"
-                    placeholder="Search by client, project title, or code..."
+                    placeholder={t('pm.search')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-900 bg-white"
+                    className="field pl-9 text-xs"
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 bg-white"
-                  >
-                    <option value="all">All Statuses</option>
-                    <option value="draft">Draft</option>
-                    <option value="review">In Review</option>
-                    <option value="approved">Approved</option>
-                    <option value="as-built">As-Built</option>
-                  </select>
-                </div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="field text-xs w-auto"
+                >
+                  <option value="all">{t('pm.allStatuses')}</option>
+                  {STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {t(statusKey[status])}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* Projects Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {filteredProjects.map((proj) => {
-                  const isCurrent = proj.id === currentProject.id;
-                  const statusColors = {
-                    draft: 'bg-slate-100 text-slate-700 border-slate-200',
-                    review: 'bg-amber-50 text-amber-800 border-amber-200',
-                    approved: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-                    'as-built': 'bg-blue-50 text-blue-800 border-blue-200',
-                  };
-
+                {filteredProjects.map((project) => {
+                  const isCurrent = project.id === currentProject.id;
                   return (
                     <div
-                      key={proj.id}
-                      className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                      key={project.id}
+                      className={`p-4 rounded-2xl border flex flex-col justify-between lift ${
                         isCurrent
-                          ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/20'
-                          : 'border-slate-200 hover:border-slate-300 bg-white shadow-xs'
+                          ? 'border-brand ring-2 ring-brand/20 bg-brand-wash'
+                          : 'border-line bg-surface-2'
                       }`}
                     >
                       <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="font-mono text-xs font-bold text-rose-600">
-                            {proj.code}
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className="font-mono text-xs font-bold text-brand">
+                            {project.code}
                           </span>
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                              statusColors[proj.status] || statusColors.draft
+                              STATUS_CLASSES[project.status] ?? STATUS_CLASSES.draft
                             }`}
                           >
-                            {proj.status}
+                            {t(statusKey[project.status] ?? 'opt.status.draft')}
                           </span>
                         </div>
 
-                        <h4 className="font-bold text-sm text-slate-900 mb-1 leading-snug">
-                          {proj.title}
+                        <h4 className="font-bold text-sm text-ink mb-1 leading-snug">
+                          {project.title}
                         </h4>
 
-                        <div className="space-y-1 text-xs text-slate-600 mb-3">
+                        <div className="space-y-1 text-xs text-ink-2 mb-3">
                           <div className="flex items-center gap-1.5">
-                            <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                            <span className="font-medium text-slate-800">{proj.clientName}</span>
+                            <Building2 className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+                            <span className="font-medium">{project.clientName}</span>
                           </div>
-                          <div className="flex items-center gap-1.5 text-slate-500">
-                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                          <div className="flex items-center gap-1.5 text-ink-3">
+                            <MapPin className="w-3.5 h-3.5 shrink-0" />
                             <span>
-                              {proj.facilityName}, {proj.location}
+                              {project.facilityName}, {project.location}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
-                            <Clock className="w-3.5 h-3.5" />
+                          <div className="flex items-center gap-1.5 text-ink-3 text-[11px]">
+                            <Clock className="w-3.5 h-3.5 shrink-0" />
                             <span>
-                              Updated {new Date(proj.updatedAt).toLocaleDateString('id-ID')} by{' '}
-                              {proj.updatedBy}
+                              {t('pm.updatedBy', {
+                                date: d(project.updatedAt),
+                                who: project.updatedBy,
+                              })}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                        {/* Status dropdown */}
+                      <div className="pt-3 border-t border-line flex items-center justify-between gap-2">
                         <select
-                          value={proj.status}
+                          value={project.status}
                           onChange={(e) =>
-                            onUpdateProject(proj.id, {
+                            onUpdateProject(project.id, {
                               status: e.target.value as ProjectStatus,
                             })
                           }
-                          className="text-[11px] px-2 py-1 rounded border border-slate-200 text-slate-700 bg-slate-50 font-medium"
+                          className="field text-[11px] py-1 w-auto"
                         >
-                          <option value="draft">Draft</option>
-                          <option value="review">In Review</option>
-                          <option value="approved">Approved</option>
-                          <option value="as-built">As-Built</option>
+                          {STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {t(statusKey[status])}
+                            </option>
+                          ))}
                         </select>
 
                         <div className="flex items-center gap-1.5">
@@ -276,12 +261,12 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                if (confirm(`Delete project "${proj.title}"?`)) {
-                                  onDeleteProject(proj.id);
+                                if (window.confirm(t('pm.confirmDelete', { title: project.title }))) {
+                                  onDeleteProject(project.id);
                                 }
                               }}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded transition-colors"
-                              title="Delete project"
+                              className="p-1.5 text-ink-3 hover:text-bad rounded-lg transition-colors"
+                              title={t('pm.deleteProject')}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -290,16 +275,16 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                           <button
                             type="button"
                             onClick={() => {
-                              onSelectProject(proj.id);
+                              onSelectProject(project.id);
                               onClose();
                             }}
-                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
                               isCurrent
-                                ? 'bg-rose-600 text-white'
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                                ? 'bg-brand text-white'
+                                : 'bg-surface-3 hover:bg-line text-ink'
                             }`}
                           >
-                            {isCurrent ? 'Current Project' : 'Load Project'}
+                            {isCurrent ? t('pm.currentProject') : t('pm.loadProject')}
                           </button>
                         </div>
                       </div>
@@ -310,86 +295,87 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: SCENARIOS & REVISIONS */}
           {activeTab === 'scenarios' && (
             <div className="space-y-5">
-              {/* Save current calculation as revision box */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 mb-2">
-                  Save Current Calculation as New Scenario
+              <div className="bg-surface-2 p-4 rounded-2xl border border-line">
+                <h4 className="font-bold text-[11px] uppercase tracking-wider text-ink-2 mb-2">
+                  {t('pm.saveAsScenario')}
                 </h4>
                 <form onSubmit={handleSaveScenarioSubmit} className="flex flex-wrap gap-2.5">
                   <input
                     type="text"
-                    placeholder="Scenario name (e.g. Option B: 4-Pipe Branched)"
+                    placeholder={t('pm.scenarioName')}
                     value={newScenarioName}
                     onChange={(e) => setNewScenarioName(e.target.value)}
-                    className="flex-1 min-w-[220px] px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-900 bg-white"
+                    className="field flex-1 min-w-[220px] text-xs"
                   />
                   <input
                     type="text"
-                    placeholder="Revision (e.g. Rev 1.1)"
+                    placeholder={t('pm.revision')}
                     value={newScenarioRev}
                     onChange={(e) => setNewScenarioRev(e.target.value)}
-                    className="w-28 px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-900 bg-white font-mono"
+                    className="field w-32 text-xs font-mono"
                   />
                   <button
                     type="submit"
-                    className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                    className="px-4 py-1.5 bg-brand hover:brightness-110 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5"
                   >
                     <Copy className="w-3.5 h-3.5" />
-                    Save Scenario
+                    {t('pm.saveScenario')}
                   </button>
                 </form>
               </div>
 
-              {/* Scenarios List */}
               <div className="space-y-2.5">
-                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700">
-                  Calculation Scenarios for {currentProject.title}
+                <h4 className="font-bold text-[11px] uppercase tracking-wider text-ink-2">
+                  {t('pm.scenariosFor', { title: currentProject.title })}
                 </h4>
 
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white">
-                  {scenarios.map((scen) => {
-                    const isCurrent = scen.id === currentScenario.id;
+                <div className="divide-y divide-line border border-line rounded-2xl overflow-hidden bg-surface-2">
+                  {scenarios.map((scenario) => {
+                    const isCurrent = scenario.id === currentScenario.id;
+                    const model = detectorKey[scenario.params.detectorModel];
                     return (
                       <div
-                        key={scen.id}
-                        className={`p-3.5 flex items-center justify-between gap-4 transition-colors ${
-                          isCurrent ? 'bg-rose-50/50' : 'hover:bg-slate-50'
+                        key={scenario.id}
+                        className={`p-3.5 flex flex-wrap items-center justify-between gap-3 transition-colors ${
+                          isCurrent ? 'bg-brand-wash' : 'hover:bg-surface-3'
                         }`}
                       >
                         <div>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="font-bold text-sm text-slate-900">{scen.name}</span>
-                            <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                              {scen.revision}
+                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                            <span className="font-bold text-sm text-ink">{scenario.name}</span>
+                            <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-surface-3 text-ink-2">
+                              {scenario.revision}
                             </span>
                             {isCurrent && (
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                                Active
+                              <span className="text-[10px] font-bold text-ok bg-ok-wash px-2 py-0.5 rounded-full">
+                                {t('pm.active')}
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-500">
-                            Room: {scen.params.length}m × {scen.params.width}m × {scen.params.height}m |{' '}
-                            {scen.params.pipeCount} Pipes | {scen.params.detectorModel}
+                          <p className="text-xs text-ink-3">
+                            {t('pm.scenarioSummary', {
+                              l: n(scenario.params.length, 1),
+                              w: n(scenario.params.width, 1),
+                              h: n(scenario.params.height, 1),
+                              n: scenario.params.pipeCount,
+                              model: model ? t(model) : scenario.params.detectorModel,
+                            })}
                           </p>
                         </div>
 
                         <button
                           type="button"
                           onClick={() => {
-                            onSelectScenario(scen.id);
+                            onSelectScenario(scenario.id);
                             onClose();
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            isCurrent
-                              ? 'bg-rose-600 text-white'
-                              : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                            isCurrent ? 'bg-brand text-white' : 'bg-surface-3 hover:bg-line text-ink'
                           }`}
                         >
-                          {isCurrent ? 'Loaded' : 'Load Scenario'}
+                          {isCurrent ? t('pm.loaded') : t('pm.loadScenario')}
                         </button>
                       </div>
                     );
@@ -399,76 +385,75 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: CREATE NEW PROJECT */}
           {activeTab === 'new' && (
             <form onSubmit={handleCreateSubmit} className="space-y-4 max-w-xl mx-auto">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Project Title *
+                <label className="block text-xs font-semibold text-ink-2 mb-1">
+                  {t('pm.fieldTitle')}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Data Center Bravo - Main Colocation Hall"
+                  placeholder={t('pm.fieldTitlePh')}
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-900 bg-white focus:ring-2 focus:ring-rose-500"
+                  className="field text-sm"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Client Name *
+                  <label className="block text-xs font-semibold text-ink-2 mb-1">
+                    {t('pm.fieldClient')}
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. PT Cloud Nusantara"
+                    placeholder={t('pm.fieldClientPh')}
                     value={newClient}
                     onChange={(e) => setNewClient(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-900 bg-white"
+                    className="field text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Client Contact / Email
+                  <label className="block text-xs font-semibold text-ink-2 mb-1">
+                    {t('pm.fieldContact')}
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. safety@client.co.id"
+                    placeholder={t('pm.fieldContactPh')}
                     value={newContact}
                     onChange={(e) => setNewContact(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-900 bg-white"
+                    className="field text-sm"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Facility / Building
+                  <label className="block text-xs font-semibold text-ink-2 mb-1">
+                    {t('pm.fieldFacility')}
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Cyber 2 Tower Level 5"
+                    placeholder={t('pm.fieldFacilityPh')}
                     value={newFacility}
                     onChange={(e) => setNewFacility(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-900 bg-white"
+                    className="field text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    City / Location
+                  <label className="block text-xs font-semibold text-ink-2 mb-1">
+                    {t('pm.fieldLocation')}
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Jakarta, Indonesia"
+                    placeholder={t('pm.fieldLocationPh')}
                     value={newLocation}
                     onChange={(e) => setNewLocation(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-900 bg-white"
+                    className="field text-sm"
                   />
                 </div>
               </div>
@@ -477,16 +462,16 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab('projects')}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="px-4 py-2 text-xs font-semibold text-ink-2 hover:bg-surface-2 rounded-lg transition-colors"
                 >
-                  Cancel
+                  {t('pm.cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                  className="px-5 py-2 bg-brand hover:brightness-110 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5"
                 >
                   <Plus className="w-4 h-4" />
-                  Create Project & Default Scenario
+                  {t('pm.create')}
                 </button>
               </div>
             </form>

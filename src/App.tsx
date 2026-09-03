@@ -1,36 +1,39 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ASDProject,
   ASDScenario,
-  CalculationParams,
   ActivityLog,
+  CalculationParams,
   NotificationToast,
-  ProjectStatus,
 } from './types';
 import { calculateASD } from './utils/nfpa72Calculator';
 import { generateTechnicalReportPDF } from './utils/pdfGenerator';
 import { FloorPlanCanvas, FloorPlanCanvasRef } from './components/FloorPlanCanvas';
+import { Room3DView, Room3DViewRef } from './components/Room3DView';
 import { ParameterForm } from './components/ParameterForm';
 import { ComplianceMatrixTab } from './components/ComplianceMatrixTab';
 import { BillOfMaterialsTab } from './components/BillOfMaterialsTab';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
 import { NotificationDrawer } from './components/NotificationDrawer';
+import { useI18n } from './context/I18nContext';
+import { useTheme } from './context/ThemeContext';
+import type { TranslationKey } from './i18n/translations';
 import {
-  Flame,
-  FileDown,
-  FolderKanban,
-  Bell,
-  Save,
-  Radio,
-  CheckCircle2,
   AlertTriangle,
-  Layers,
-  FileSpreadsheet,
+  Bell,
+  Boxes,
   Check,
+  CheckCircle2,
   ChevronDown,
-  RotateCcw,
-  Sparkles,
-  Users,
+  FileDown,
+  FileSpreadsheet,
+  Flame,
+  Languages,
+  Layers,
+  Moon,
+  Radio,
+  Save,
+  Sun,
 } from 'lucide-react';
 
 const defaultParams: CalculationParams = {
@@ -56,8 +59,82 @@ const defaultParams: CalculationParams = {
   capillaryTubeLength: 0.8,
 };
 
+const PRESETS: Record<string, Partial<CalculationParams>> = {
+  data_center: {
+    length: 24,
+    width: 16,
+    height: 3.8,
+    roomType: 'data_center',
+    airChangesPerHour: 28,
+    airflowVelocity: 2.2,
+    sensitivityClass: 'Class A (High Sensitivity)',
+    detectorModel: 'VESDA VEP-A00-P (4-Pipe)',
+    pipeCount: 4,
+    aspiratorSpeed: 'high',
+    pipeSpacingMeters: 4.0,
+    holeSpacingMeters: 4.0,
+    capillaryDropEnabled: true,
+  },
+  clean_room: {
+    length: 18,
+    width: 12,
+    height: 3.2,
+    roomType: 'clean_room',
+    airChangesPerHour: 45,
+    airflowVelocity: 3.0,
+    sensitivityClass: 'Class A (High Sensitivity)',
+    detectorModel: 'Securiton ASD 535 (2-Pipe)',
+    pipeCount: 2,
+    aspiratorSpeed: 'high',
+    pipeSpacingMeters: 5.0,
+    holeSpacingMeters: 3.5,
+    capillaryDropEnabled: false,
+  },
+  warehouse: {
+    length: 40,
+    width: 25,
+    height: 9.0,
+    roomType: 'warehouse',
+    airChangesPerHour: 4,
+    airflowVelocity: 0.3,
+    sensitivityClass: 'Class B (Enhanced)',
+    detectorModel: 'VESDA VEU-A00 (High-Sensitivity 4-Pipe)',
+    pipeCount: 4,
+    aspiratorSpeed: 'high',
+    pipeSpacingMeters: 6.0,
+    holeSpacingMeters: 6.0,
+    capillaryDropEnabled: false,
+  },
+  commercial: {
+    length: 20,
+    width: 15,
+    height: 3.0,
+    roomType: 'general_commercial',
+    airChangesPerHour: 6,
+    airflowVelocity: 0.5,
+    sensitivityClass: 'Class C (Standard)',
+    detectorModel: 'VESDA VEP-A00-P (4-Pipe)',
+    pipeCount: 2,
+    aspiratorSpeed: 'medium',
+    pipeSpacingMeters: 6.0,
+    holeSpacingMeters: 6.0,
+    capillaryDropEnabled: false,
+  },
+};
+
+const PRESET_LABEL_KEYS: Record<string, TranslationKey> = {
+  data_center: 'form.presets.dataCenter',
+  clean_room: 'form.presets.cleanRoom',
+  warehouse: 'form.presets.warehouse',
+  commercial: 'form.presets.commercial',
+};
+
+type TabId = 'model3d' | 'visualizer' | 'compliance' | 'boq';
+
 export default function App() {
-  // Projects & Scenarios state
+  const { t, n, lang, toggleLang } = useI18n();
+  const { isDark, toggleTheme } = useTheme();
+
   const [projects, setProjects] = useState<ASDProject[]>([]);
   const [currentProject, setCurrentProject] = useState<ASDProject>({
     id: 'proj-1',
@@ -79,75 +156,64 @@ export default function App() {
     id: 'scen-1',
     projectId: 'proj-1',
     name: 'Option A: 4-Pipe High Sensitivity Grid',
-    revision: 'Rev 2.0 (Approved)',
+    revision: 'Rev 2.0',
     createdAt: Date.now(),
     updatedAt: Date.now(),
     params: defaultParams,
   });
 
   const [params, setParams] = useState<CalculationParams>(defaultParams);
-  const [activeTab, setActiveTab] = useState<'visualizer' | 'compliance' | 'boq'>('visualizer');
+  const [activeTab, setActiveTab] = useState<TabId>('model3d');
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
+  const [saveFeedback, setSaveFeedback] = useState(false);
 
-  // Real-time Collaboration & WebSocket State
   const [onlineCount, setOnlineCount] = useState(1);
   const [wsConnected, setWsConnected] = useState(false);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [toasts, setToasts] = useState<NotificationToast[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
 
   const floorPlanRef = useRef<FloorPlanCanvasRef>(null);
+  const modelRef = useRef<Room3DViewRef>(null);
 
-  // Calculate NFPA 72 results in real-time
-  const results = useMemo(() => {
-    return calculateASD(params);
-  }, [params]);
+  const results = useMemo(() => calculateASD(params), [params]);
 
-  // Add toast notification
-  const addToast = useCallback((title: string, message: string, type: 'info' | 'success' | 'warning' = 'info') => {
-    const newToast: NotificationToast = {
-      id: `toast-${Date.now()}-${Math.random()}`,
-      title,
-      message,
-      type,
-      timestamp: Date.now(),
-    };
-    setToasts((prev) => [newToast, ...prev.slice(0, 4)]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== newToast.id));
-    }, 5000);
-  }, []);
+  const addToast = useCallback(
+    (title: string, message: string, type: 'info' | 'success' | 'warning' = 'info') => {
+      const toast: NotificationToast = {
+        id: `toast-${Date.now()}-${Math.random()}`,
+        title,
+        message,
+        type,
+        timestamp: Date.now(),
+      };
+      setToasts((prev) => [toast, ...prev.slice(0, 4)]);
+      setTimeout(() => setToasts((prev) => prev.filter((item) => item.id !== toast.id)), 5000);
+    },
+    []
+  );
 
-  // Fetch initial projects & activities from backend
+  // --------------------------------------------------------------- API layer
   const fetchProjects = useCallback(async () => {
     try {
       const res = await fetch('/api/projects');
-      if (res.ok) {
-        const data = await res.json();
-        setProjects(data);
-        if (data.length > 0 && !currentProject.id) {
-          setCurrentProject(data[0]);
-        }
-      }
+      if (res.ok) setProjects(await res.json());
     } catch (err) {
       console.warn('API fetch projects:', err);
     }
-  }, [currentProject.id]);
+  }, []);
 
-  const fetchScenarios = useCallback(async (projId: string) => {
+  const fetchScenarios = useCallback(async (projectId: string) => {
     try {
-      const res = await fetch(`/api/projects/${projId}/scenarios`);
-      if (res.ok) {
-        const data = await res.json();
-        setScenarios(data);
-        if (data.length > 0) {
-          setCurrentScenario(data[0]);
-          setParams(data[0].params);
-        }
+      const res = await fetch(`/api/projects/${projectId}/scenarios`);
+      if (!res.ok) return;
+      const data: ASDScenario[] = await res.json();
+      setScenarios(data);
+      if (data.length > 0) {
+        setCurrentScenario(data[0]);
+        setParams(data[0].params);
       }
     } catch (err) {
       console.warn('API fetch scenarios:', err);
@@ -157,10 +223,7 @@ export default function App() {
   const fetchActivities = useCallback(async () => {
     try {
       const res = await fetch('/api/activities');
-      if (res.ok) {
-        const data = await res.json();
-        setActivities(data);
-      }
+      if (res.ok) setActivities(await res.json());
     } catch (err) {
       console.warn('API fetch activities:', err);
     }
@@ -172,137 +235,97 @@ export default function App() {
   }, [fetchProjects, fetchActivities]);
 
   useEffect(() => {
-    if (currentProject?.id) {
-      fetchScenarios(currentProject.id);
-    }
+    if (currentProject.id) fetchScenarios(currentProject.id);
   }, [currentProject.id, fetchScenarios]);
 
-  // Connect to WebSocket for real-time cloud sync
+  // The socket must outlive project switches, so the handler reads the current
+  // project from a ref instead of forcing the effect to re-subscribe.
+  const currentProjectIdRef = useRef(currentProject.id);
+  currentProjectIdRef.current = currentProject.id;
+
+  const handlersRef = useRef({ addToast, fetchActivities, fetchProjects, t });
+  handlersRef.current = { addToast, fetchActivities, fetchProjects, t };
+
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
     let socket: WebSocket;
 
     try {
-      socket = new WebSocket(wsUrl);
-      wsRef.current = socket;
-
-      socket.onopen = () => {
-        setWsConnected(true);
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'init:connected' || msg.type === 'presence:update') {
-            setOnlineCount(msg.payload.onlineCount || 1);
-          } else if (msg.type === 'scenario:saved') {
-            addToast('Calculation Updated', msg.payload.activity.details, 'success');
-            fetchActivities();
-            if (msg.payload.scenario.projectId === currentProject.id) {
-              setScenarios((prev) =>
-                prev.map((s) => (s.id === msg.payload.scenario.id ? msg.payload.scenario : s))
-              );
-            }
-          } else if (msg.type === 'project:created') {
-            addToast('New Project Created', msg.payload.activity.details, 'info');
-            fetchProjects();
-            fetchActivities();
-          } else if (msg.type === 'project:updated') {
-            addToast('Project Status Changed', msg.payload.activity.details, 'info');
-            fetchProjects();
-            fetchActivities();
-          }
-        } catch (e) {
-          console.error('WS parse error', e);
-        }
-      };
-
-      socket.onclose = () => {
-        setWsConnected(false);
-      };
+      socket = new WebSocket(`${protocol}//${window.location.host}`);
     } catch (err) {
       console.warn('WebSocket connection error:', err);
+      return;
     }
 
-    return () => {
-      if (socket) socket.close();
+    socket.onopen = () => setWsConnected(true);
+    socket.onclose = () => setWsConnected(false);
+    socket.onerror = () => setWsConnected(false);
+
+    socket.onmessage = (event) => {
+      const handlers = handlersRef.current;
+      try {
+        const message = JSON.parse(event.data);
+        switch (message.type) {
+          case 'init:connected':
+          case 'presence:update':
+            setOnlineCount(message.payload.onlineCount || 1);
+            break;
+          case 'scenario:saved':
+            handlers.addToast(
+              handlers.t('toast.remoteScenarioTitle'),
+              message.payload.activity?.details ?? '',
+              'success'
+            );
+            handlers.fetchActivities();
+            if (message.payload.scenario?.projectId === currentProjectIdRef.current) {
+              setScenarios((prev) =>
+                prev.map((item) =>
+                  item.id === message.payload.scenario.id ? message.payload.scenario : item
+                )
+              );
+            }
+            break;
+          case 'project:created':
+            handlers.addToast(
+              handlers.t('toast.remoteProjectTitle'),
+              message.payload.activity?.details ?? '',
+              'info'
+            );
+            handlers.fetchProjects();
+            handlers.fetchActivities();
+            break;
+          case 'project:updated':
+            handlers.addToast(
+              handlers.t('toast.remoteStatusTitle'),
+              message.payload.activity?.details ?? '',
+              'info'
+            );
+            handlers.fetchProjects();
+            handlers.fetchActivities();
+            break;
+          default:
+            break;
+        }
+      } catch (err) {
+        console.error('WS parse error', err);
+      }
     };
-  }, [addToast, currentProject.id, fetchActivities, fetchProjects]);
 
-  // Quick preset loader
+    return () => socket.close();
+  }, []);
+
+  // ------------------------------------------------------------------ actions
   const handleQuickPreset = (presetName: string) => {
-    let p: Partial<CalculationParams> = {};
-    if (presetName === 'data_center') {
-      p = {
-        length: 24,
-        width: 16,
-        height: 3.8,
-        roomType: 'data_center',
-        airChangesPerHour: 28,
-        airflowVelocity: 2.2,
-        sensitivityClass: 'Class A (High Sensitivity)',
-        detectorModel: 'VESDA VEP-A00-P (4-Pipe)',
-        pipeCount: 4,
-        aspiratorSpeed: 'high',
-        pipeSpacingMeters: 4.0,
-        holeSpacingMeters: 4.0,
-        capillaryDropEnabled: true,
-      };
-    } else if (presetName === 'clean_room') {
-      p = {
-        length: 18,
-        width: 12,
-        height: 3.2,
-        roomType: 'clean_room',
-        airChangesPerHour: 45,
-        airflowVelocity: 3.0,
-        sensitivityClass: 'Class A (High Sensitivity)',
-        detectorModel: 'Securiton ASD 535 (2-Pipe)',
-        pipeCount: 2,
-        aspiratorSpeed: 'high',
-        pipeSpacingMeters: 5.0,
-        holeSpacingMeters: 3.5,
-        capillaryDropEnabled: false,
-      };
-    } else if (presetName === 'warehouse') {
-      p = {
-        length: 40,
-        width: 25,
-        height: 9.0,
-        roomType: 'warehouse',
-        airChangesPerHour: 4,
-        airflowVelocity: 0.3,
-        sensitivityClass: 'Class B (Enhanced)',
-        detectorModel: 'VESDA VEU-A00 (High-Sensitivity 4-Pipe)',
-        pipeCount: 4,
-        aspiratorSpeed: 'high',
-        pipeSpacingMeters: 6.0,
-        holeSpacingMeters: 6.0,
-        capillaryDropEnabled: false,
-      };
-    } else if (presetName === 'commercial') {
-      p = {
-        length: 20,
-        width: 15,
-        height: 3.0,
-        roomType: 'general_commercial',
-        airChangesPerHour: 6,
-        airflowVelocity: 0.5,
-        sensitivityClass: 'Class C (Standard)',
-        detectorModel: 'VESDA VEP-A00-P (4-Pipe)',
-        pipeCount: 2,
-        aspiratorSpeed: 'medium',
-        pipeSpacingMeters: 6.0,
-        holeSpacingMeters: 6.0,
-        capillaryDropEnabled: false,
-      };
-    }
-    setParams((prev) => ({ ...prev, ...p }));
-    addToast('Preset Applied', `Loaded NFPA 72 parameters for ${presetName.replace('_', ' ')}`, 'info');
+    const preset = PRESETS[presetName];
+    if (!preset) return;
+    setParams((prev) => ({ ...prev, ...preset }));
+    addToast(
+      t('toast.presetTitle'),
+      t('toast.presetBody', { name: t(PRESET_LABEL_KEYS[presetName]) }),
+      'info'
+    );
   };
 
-  // Save current calculation to database
   const handleSaveCalculation = async () => {
     setIsSaving(true);
     try {
@@ -314,66 +337,68 @@ export default function App() {
           name: currentScenario.name,
           revision: currentScenario.revision,
           params,
-          author: 'User (You)',
+          author: t('user.you'),
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentScenario(data.scenario);
-        setSaveFeedback('Calculation Saved!');
-        addToast('Saved to Cloud', `Scenario ${data.scenario.name} saved successfully`, 'success');
-        fetchActivities();
-        setTimeout(() => setSaveFeedback(null), 2500);
-      }
+      if (!res.ok) throw new Error(`Save failed with status ${res.status}`);
+      const data = await res.json();
+      setCurrentScenario(data.scenario);
+      setSaveFeedback(true);
+      addToast(t('toast.savedTitle'), t('toast.savedBody', { name: data.scenario.name }), 'success');
+      fetchActivities();
+      setTimeout(() => setSaveFeedback(false), 2500);
     } catch (err) {
       console.error('Error saving calculation:', err);
+      addToast(t('toast.saveFailedTitle'), t('toast.saveFailedBody'), 'warning');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Generate Technical PDF Report
   const handleExportPDF = async () => {
     setIsGeneratingPdf(true);
     try {
-      // Capture 2D floor plan snapshot as high-res PNG
-      const planImg = await floorPlanRef.current?.getCanvasImageBase64();
-      generateTechnicalReportPDF(currentProject, currentScenario, results, planImg);
-      addToast('PDF Report Generated', `Downloaded technical report for ${currentProject.code}`, 'success');
+      const planImage = await floorPlanRef.current?.getCanvasImageBase64();
+      const modelImage = modelRef.current?.getImageBase64();
+      generateTechnicalReportPDF(
+        currentProject,
+        { ...currentScenario, params },
+        results,
+        { t, n, d: (value) => new Date(value).toLocaleDateString(lang === 'id' ? 'id-ID' : 'en-US') },
+        { planImage, modelImage }
+      );
+      addToast(t('toast.pdfTitle'), t('toast.pdfBody', { code: currentProject.code }), 'success');
     } catch (err) {
       console.error('Failed to generate PDF:', err);
-      addToast('Export Failed', 'An error occurred during PDF generation', 'warning');
+      addToast(t('toast.pdfFailedTitle'), t('toast.pdfFailedBody'), 'warning');
     } finally {
       setIsGeneratingPdf(false);
     }
   };
 
-  // Create Project handler
-  const handleCreateProject = async (data: any) => {
+  const handleCreateProject = async (data: Record<string, unknown>) => {
     try {
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          params,
-          author: 'User (You)',
-        }),
+        body: JSON.stringify({ ...data, params, author: t('user.you') }),
       });
-      if (res.ok) {
-        const result = await res.json();
-        setProjects((prev) => [result.project, ...prev]);
-        setCurrentProject(result.project);
-        setCurrentScenario(result.scenario);
-        setParams(result.scenario.params);
-        addToast('Project Created', `Initialized project ${result.project.code}`, 'success');
-      }
+      if (!res.ok) return;
+      const result = await res.json();
+      setProjects((prev) => [result.project, ...prev]);
+      setCurrentProject(result.project);
+      setCurrentScenario(result.scenario);
+      setParams(result.scenario.params);
+      addToast(
+        t('toast.projectCreatedTitle'),
+        t('toast.projectCreatedBody', { code: result.project.code }),
+        'success'
+      );
     } catch (err) {
       console.error('Error creating project:', err);
     }
   };
 
-  // Update Project handler
   const handleUpdateProject = async (projectId: string, partial: Partial<ASDProject>) => {
     try {
       const res = await fetch(`/api/projects/${projectId}`, {
@@ -381,346 +406,319 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...partial,
-          updatedBy: 'User (You)',
+          updatedBy: t('user.you'),
           statusChange: !!partial.status,
           changeDescription: partial.status ? `Status changed to ${partial.status}` : undefined,
         }),
       });
-      if (res.ok) {
-        const result = await res.json();
-        setProjects((prev) => prev.map((p) => (p.id === projectId ? result.project : p)));
-        if (currentProject.id === projectId) {
-          setCurrentProject(result.project);
-        }
-        addToast('Project Updated', `Project metadata updated`, 'info');
-      }
+      if (!res.ok) return;
+      const result = await res.json();
+      setProjects((prev) => prev.map((p) => (p.id === projectId ? result.project : p)));
+      if (currentProject.id === projectId) setCurrentProject(result.project);
+      addToast(t('toast.projectUpdatedTitle'), t('toast.projectUpdatedBody'), 'info');
     } catch (err) {
       console.error('Error updating project:', err);
     }
   };
 
-  // Delete Project handler
   const handleDeleteProject = async (projectId: string) => {
     try {
       const res = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
-      if (res.ok) {
-        const remain = projects.filter((p) => p.id !== projectId);
-        setProjects(remain);
-        if (remain.length > 0) {
-          setCurrentProject(remain[0]);
-          fetchScenarios(remain[0].id);
-        }
-        addToast('Project Deleted', 'Project removed from cloud database', 'info');
-      }
+      if (!res.ok) return;
+      const remaining = projects.filter((p) => p.id !== projectId);
+      setProjects(remaining);
+      if (remaining.length > 0) setCurrentProject(remaining[0]);
+      addToast(t('toast.projectDeletedTitle'), t('toast.projectDeletedBody'), 'info');
     } catch (err) {
       console.error('Error deleting project:', err);
     }
   };
 
-  // Save new scenario / revision handler
   const handleSaveScenario = async (name: string, revision: string) => {
     try {
       const res = await fetch(`/api/projects/${currentProject.id}/scenarios`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          revision,
-          params,
-          author: 'User (You)',
-        }),
+        body: JSON.stringify({ name, revision, params, author: t('user.you') }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setScenarios((prev) => [...prev, data.scenario]);
-        setCurrentScenario(data.scenario);
-        addToast('Scenario Created', `Saved scenario "${name}" (${revision})`, 'success');
-      }
+      if (!res.ok) return;
+      const data = await res.json();
+      setScenarios((prev) => [...prev, data.scenario]);
+      setCurrentScenario(data.scenario);
+      addToast(
+        t('toast.scenarioCreatedTitle'),
+        t('toast.scenarioCreatedBody', { name, rev: revision }),
+        'success'
+      );
     } catch (err) {
       console.error('Error saving scenario:', err);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
-      {/* Top Application Header */}
-      <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          {/* Brand & Project Identity */}
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-700 to-rose-500 flex items-center justify-center shadow-md">
-              <Flame className="w-6 h-6 text-white" />
-            </div>
+  // --------------------------------------------------------------------- view
+  const transportOk = results.estimatedTransportTimeSec <= results.maxAllowedTransportTimeSec;
+  const areaPerPort = results.roomAreaM2 / Math.max(1, results.totalHolesCalculated);
 
-            <div>
+  const metrics = [
+    {
+      label: t('metric.ports'),
+      value: n(results.totalHolesCalculated),
+      sub: t('metric.portsSub', { v: n(areaPerPort, 1) }),
+      tone: 'text-ink',
+    },
+    {
+      label: t('metric.pipeRun'),
+      value: `${n(results.totalPipeLengthM, 1)} m`,
+      sub: t('metric.pipeRunSub', { n: params.pipeCount }),
+      tone: 'text-ink',
+    },
+    {
+      label: t('metric.transport'),
+      value: `${n(results.estimatedTransportTimeSec, 1)} s`,
+      sub: t('metric.transportLimit', { v: results.maxAllowedTransportTimeSec }),
+      tone: transportOk ? 'text-ok' : 'text-bad',
+    },
+  ];
+
+  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: 'model3d', label: t('tab.model3d'), icon: <Boxes className="w-4 h-4" /> },
+    { id: 'visualizer', label: t('tab.plan2d'), icon: <Layers className="w-4 h-4" /> },
+    { id: 'compliance', label: t('tab.compliance'), icon: <CheckCircle2 className="w-4 h-4" /> },
+    { id: 'boq', label: t('tab.boq'), icon: <FileSpreadsheet className="w-4 h-4" /> },
+  ];
+
+  return (
+    <div className="min-h-screen bg-canvas text-ink flex flex-col font-sans">
+      {/* A soft brand glow behind the header gives the shell a sense of depth. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-x-0 top-0 h-72 -z-10 opacity-60"
+        style={{
+          background:
+            'radial-gradient(60% 100% at 50% 0%, color-mix(in srgb, var(--color-brand) 22%, transparent), transparent 70%)',
+        }}
+      />
+
+      <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur-xl">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <span className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand to-brand-2 flex items-center justify-center shadow-lg shrink-0">
+              <Flame className="w-6 h-6 text-white" />
+            </span>
+
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="font-extrabold text-base tracking-tight">
-                  ASD Pipe &amp; Sampling Calculator
+                <h1 className="font-extrabold text-sm sm:text-base tracking-tight truncate">
+                  {t('app.title')}
                 </h1>
-                <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                  NFPA 72 STD
+                <span className="hidden md:inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-brand-wash text-brand border border-brand/30 shrink-0">
+                  {t('app.badge')}
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <button
-                  type="button"
-                  onClick={() => setIsProjectModalOpen(true)}
-                  className="hover:text-white flex items-center gap-1 font-medium transition-colors"
-                >
-                  <span className="font-mono text-rose-400 font-bold">{currentProject.code}</span>:
-                  <span>{currentProject.title}</span>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsProjectModalOpen(true)}
+                title={t('header.openProjects')}
+                className="text-xs text-ink-3 hover:text-ink flex items-center gap-1 font-medium transition-colors max-w-full"
+              >
+                <span className="font-mono text-brand font-bold">{currentProject.code}</span>
+                <span className="truncate">· {currentProject.title}</span>
+                <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+              </button>
             </div>
           </div>
 
-          {/* Header Action Buttons */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Real-time Cloud Sync Pill */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
-              onClick={() => setIsNotificationDrawerOpen(true)}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 transition-colors"
-              title="Cloud Synchronization & Active Team"
+              type="button"
+              onClick={toggleLang}
+              title={t('header.language')}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 border border-line text-xs font-bold text-ink-2 transition-colors"
             >
-              <div className="relative">
-                <Radio className={`w-3.5 h-3.5 ${wsConnected ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
-                {wsConnected && (
-                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                )}
-              </div>
-              <span className="hidden md:inline font-medium">
-                {wsConnected ? `Cloud Sync (${onlineCount})` : 'Offline'}
+              <Languages className="w-3.5 h-3.5" />
+              <span className="uppercase">{lang}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={isDark ? t('header.switchToLight') : t('header.switchToDark')}
+              className="p-2 rounded-lg bg-surface-2 hover:bg-surface-3 border border-line text-ink-2 transition-colors"
+            >
+              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsNotificationDrawerOpen(true)}
+              className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 border border-line text-xs text-ink-2 transition-colors"
+              title={t('header.syncTitle')}
+            >
+              <Radio className={`w-3.5 h-3.5 ${wsConnected ? 'text-ok animate-pulse' : 'text-ink-3'}`} />
+              <span className="hidden lg:inline font-medium">
+                {wsConnected ? `${t('header.cloudSync')} (${onlineCount})` : t('header.offline')}
               </span>
             </button>
 
-            {/* Notification Bell */}
             <button
+              type="button"
               onClick={() => setIsNotificationDrawerOpen(true)}
-              className="relative p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-              title="Activity & Notifications"
+              className="relative p-2 rounded-lg text-ink-2 hover:text-ink hover:bg-surface-3 transition-colors"
+              title={t('header.notifications')}
             >
               <Bell className="w-4 h-4" />
               {activities.length > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500"></span>
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-brand" />
               )}
             </button>
 
-            {/* Save to Cloud Button */}
             <button
+              type="button"
               onClick={handleSaveCalculation}
               disabled={isSaving}
-              className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition-colors shadow-xs"
+              className="hidden md:flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-surface-2 hover:bg-surface-3 text-ink border border-line transition-colors disabled:opacity-60"
             >
               {saveFeedback ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Saved</span>
+                  <Check className="w-3.5 h-3.5 text-ok" />
+                  {t('header.saved')}
                 </>
               ) : (
                 <>
-                  <Save className="w-3.5 h-3.5 text-rose-400" />
-                  <span>{isSaving ? 'Saving...' : 'Save Scenario'}</span>
+                  <Save className="w-3.5 h-3.5 text-brand" />
+                  {isSaving ? t('header.saving') : t('header.save')}
                 </>
               )}
             </button>
 
-            {/* Export PDF Report Button */}
             <button
+              type="button"
               onClick={handleExportPDF}
               disabled={isGeneratingPdf}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition-colors shadow-md disabled:opacity-75"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-brand hover:brightness-110 text-white transition shadow-lg disabled:opacity-75"
             >
               <FileDown className="w-4 h-4" />
-              <span>{isGeneratingPdf ? 'Building PDF...' : 'Export PDF Report'}</span>
+              <span className="hidden sm:inline">
+                {isGeneratingPdf ? t('header.buildingPdf') : t('header.exportPdf')}
+              </span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Parameter & NFPA 72 Configuration Panel (5 cols) */}
-        <section className="lg:col-span-5 flex flex-col gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-            {/* Scenario revision header */}
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Active Calculation
+      <main className="flex-1 max-w-[1400px] w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <section className="lg:col-span-4 xl:col-span-4 flex flex-col gap-4">
+          <div className="surface-card surface-raised p-5">
+            <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-line">
+              <div className="min-w-0">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-ink-3 block">
+                  {t('scenario.active')}
                 </span>
-                <h2 className="font-bold text-sm text-slate-900">{currentScenario.name}</h2>
+                <h2 className="font-bold text-sm text-ink truncate">{currentScenario.name}</h2>
               </div>
-              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-surface-3 text-ink-2 border border-line shrink-0">
                 {currentScenario.revision}
               </span>
             </div>
 
-            {/* Parameter Input Form */}
-            <ParameterForm
-              params={params}
-              onChange={setParams}
-              onQuickPreset={handleQuickPreset}
-            />
+            <ParameterForm params={params} onChange={setParams} onQuickPreset={handleQuickPreset} />
           </div>
         </section>
 
-        {/* Right Column: Visualization & Technical Results Tabs (7 cols) */}
-        <section className="lg:col-span-7 flex flex-col gap-4">
-          {/* Quick Metrics Header Bar */}
+        <section className="lg:col-span-8 xl:col-span-8 flex flex-col gap-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase block">
-                Sampling Ports
-              </span>
-              <span className="text-xl font-mono font-extrabold text-slate-900">
-                {results.totalHolesCalculated}
-              </span>
-              <span className="text-[10px] text-slate-500 block">
-                {(results.roomAreaM2 / results.totalHolesCalculated).toFixed(1)} m²/port
-              </span>
-            </div>
+            {metrics.map((metric) => (
+              <div key={metric.label} className="surface-card surface-raised lift p-3">
+                <span className="text-[11px] font-semibold text-ink-3 uppercase block">
+                  {metric.label}
+                </span>
+                <span className={`text-xl font-mono font-extrabold ${metric.tone}`}>
+                  {metric.value}
+                </span>
+                <span className="text-[10px] text-ink-3 block">{metric.sub}</span>
+              </div>
+            ))}
 
-            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase block">
-                Total Pipe Run
-              </span>
-              <span className="text-xl font-mono font-extrabold text-slate-900">
-                {results.totalPipeLengthM} m
-              </span>
-              <span className="text-[10px] text-slate-500 block">
-                {params.pipeCount} Active branches
-              </span>
-            </div>
-
-            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase block">
-                Transport Time
-              </span>
-              <span
-                className={`text-xl font-mono font-extrabold ${
-                  results.estimatedTransportTimeSec <= results.maxAllowedTransportTimeSec
-                    ? 'text-emerald-600'
-                    : 'text-rose-600'
-                }`}
-              >
-                {results.estimatedTransportTimeSec} s
-              </span>
-              <span className="text-[10px] text-slate-500 block">
-                Limit: ≤ {results.maxAllowedTransportTimeSec} s
-              </span>
-            </div>
-
-            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase block">
-                NFPA 72 Status
+            <div className="surface-card surface-raised lift p-3">
+              <span className="text-[11px] font-semibold text-ink-3 uppercase block">
+                {t('metric.status')}
               </span>
               <div className="flex items-center gap-1.5 mt-0.5">
                 {results.isCompliant ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Compliant
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-ok bg-ok-wash px-2 py-0.5 rounded-full border border-ok/30">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> {t('metric.compliant')}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                    <AlertTriangle className="w-3.5 h-3.5" /> Attention
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-warn bg-warn-wash px-2 py-0.5 rounded-full border border-warn/30">
+                    <AlertTriangle className="w-3.5 h-3.5" /> {t('metric.attention')}
                   </span>
                 )}
               </div>
-              <span className="text-[10px] text-slate-500 block mt-0.5">
-                Balance: {results.flowBalanceRatioPercent}%
+              <span className="text-[10px] text-ink-3 block mt-0.5">
+                {t('metric.balanceShort', { v: n(results.flowBalanceRatioPercent, 1) })}
               </span>
             </div>
           </div>
 
-          {/* Navigation Tab Bar */}
-          <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 rounded-xl shadow-2xs">
-            <div className="flex space-x-2 sm:space-x-4">
-              <button
-                type="button"
-                onClick={() => setActiveTab('visualizer')}
-                className={`py-3 px-2 text-xs font-bold border-b-2 flex items-center gap-1.5 transition-colors ${
-                  activeTab === 'visualizer'
-                    ? 'border-rose-600 text-rose-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Layers className="w-4 h-4" />
-                2D Real-Time Pipe Plan
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('compliance')}
-                className={`py-3 px-2 text-xs font-bold border-b-2 flex items-center gap-1.5 transition-colors ${
-                  activeTab === 'compliance'
-                    ? 'border-rose-600 text-rose-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                NFPA 72 Compliance &amp; Drill Schedule
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('boq')}
-                className={`py-3 px-2 text-xs font-bold border-b-2 flex items-center gap-1.5 transition-colors ${
-                  activeTab === 'boq'
-                    ? 'border-rose-600 text-rose-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                Bill of Materials (BoQ)
-              </button>
+          <div className="surface-card px-2 sm:px-4 overflow-x-auto">
+            <div className="flex gap-1 sm:gap-3 min-w-max">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`py-3 px-2 text-xs font-bold border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+                    activeTab === tab.id
+                      ? 'border-brand text-brand'
+                      : 'border-transparent text-ink-3 hover:text-ink'
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Active Tab View */}
-          <div className="flex-1 min-h-[500px]">
-            {activeTab === 'visualizer' && (
-              <div className="h-[520px]">
-                <FloorPlanCanvas
-                  ref={floorPlanRef}
-                  params={params}
-                  results={results}
-                  onUpdateParams={(p) => setParams((prev) => ({ ...prev, ...p }))}
-                />
-              </div>
-            )}
+          <div className="flex-1 min-h-[520px]">
+            {/* The 3D scene keeps its WebGL context alive across tab switches so
+                the PDF export can always grab a fresh snapshot. */}
+            <div className={activeTab === 'model3d' ? 'h-[560px]' : 'hidden'}>
+              <Room3DView ref={modelRef} params={params} results={results} />
+            </div>
+
+            <div className={activeTab === 'visualizer' ? 'h-[560px]' : 'hidden'}>
+              <FloorPlanCanvas ref={floorPlanRef} params={params} results={results} />
+            </div>
 
             {activeTab === 'compliance' && (
               <ComplianceMatrixTab results={results} params={params} />
             )}
 
-            {activeTab === 'boq' && (
-              <BillOfMaterialsTab results={results} params={params} />
-            )}
+            {activeTab === 'boq' && <BillOfMaterialsTab results={results} params={params} />}
           </div>
         </section>
       </main>
 
-      {/* Floating Real-Time Notification Toasts */}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="pointer-events-auto bg-slate-900/95 backdrop-blur-md text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 flex items-start gap-3 animate-slideIn"
+            className="pointer-events-auto surface-card glass px-4 py-3 flex items-start gap-3 animate-slideIn shadow-2xl"
           >
-            <div className="mt-0.5">
-              {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-              {toast.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-400" />}
-              {toast.type === 'info' && <Radio className="w-4 h-4 text-sky-400 animate-pulse" />}
-            </div>
+            <span className="mt-0.5">
+              {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-ok" />}
+              {toast.type === 'warning' && <AlertTriangle className="w-4 h-4 text-warn" />}
+              {toast.type === 'info' && <Radio className="w-4 h-4 text-info animate-pulse" />}
+            </span>
             <div className="flex-1 text-xs">
-              <span className="font-bold text-slate-100 block">{toast.title}</span>
-              <p className="text-slate-300 mt-0.5">{toast.message}</p>
+              <span className="font-bold text-ink block">{toast.title}</span>
+              <p className="text-ink-2 mt-0.5">{toast.message}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Project & Scenario Management Modal */}
       <ProjectManagerModal
         isOpen={isProjectModalOpen}
         onClose={() => setIsProjectModalOpen(false)}
@@ -729,26 +727,22 @@ export default function App() {
         scenarios={scenarios}
         currentScenario={currentScenario}
         onSelectProject={(id) => {
-          const p = projects.find((proj) => proj.id === id);
-          if (p) {
-            setCurrentProject(p);
-            fetchScenarios(p.id);
-          }
+          const project = projects.find((item) => item.id === id);
+          if (project) setCurrentProject(project);
         }}
         onCreateProject={handleCreateProject}
         onUpdateProject={handleUpdateProject}
         onDeleteProject={handleDeleteProject}
         onSaveScenario={handleSaveScenario}
         onSelectScenario={(id) => {
-          const s = scenarios.find((sc) => sc.id === id);
-          if (s) {
-            setCurrentScenario(s);
-            setParams(s.params);
+          const scenario = scenarios.find((item) => item.id === id);
+          if (scenario) {
+            setCurrentScenario(scenario);
+            setParams(scenario.params);
           }
         }}
       />
 
-      {/* Team Presence & Activity Notifications Drawer */}
       <NotificationDrawer
         isOpen={isNotificationDrawerOpen}
         onClose={() => setIsNotificationDrawerOpen(false)}

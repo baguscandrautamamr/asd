@@ -266,67 +266,59 @@ export function calculateASD(params: CalculationParams): CalculationResults {
     transportTimeRating = 'Non-Compliant';
   }
 
-  // 8. NFPA 72 Compliance Checks
+  // 8. NFPA 72 Compliance Checks.
+  // Rows carry translation keys instead of prose so the same result object can
+  // be rendered in Bahasa Indonesia or English without recalculating.
   const complianceChecks: ComplianceCheck[] = [
     {
       id: 'chk-transport',
-      rule: 'Maximum Smoke Transport Time',
+      ruleKey: 'chk.transport.rule',
       standardRef: 'NFPA 72 Sec. 17.7.3.6.2',
       status: estimatedTransportTimeSec <= maxAllowedTransportTimeSec ? 'pass' : 'fail',
       actualValue: `${estimatedTransportTimeSec} s`,
-      limitValue: `≤ ${maxAllowedTransportTimeSec} s`,
-      notes:
+      limitValue: `\u2264 ${maxAllowedTransportTimeSec} s`,
+      noteKey:
         estimatedTransportTimeSec <= maxAllowedTransportTimeSec
-          ? 'Complies with NFPA 72 maximum allowable transport time.'
-          : 'Exceeds allowable transport time limit. Reduce pipe length or increase aspirator speed.',
+          ? 'chk.transport.pass'
+          : 'chk.transport.fail',
     },
     {
       id: 'chk-coverage',
-      rule: 'Area Coverage per Sampling Hole',
+      ruleKey: 'chk.coverage.rule',
       standardRef: 'NFPA 72 Sec. 17.7.3.6.3 & 17.7.6.3',
       status:
-        roomAreaM2 / allHoles.length <= recommendedMaxAreaPerHoleM2 * 1.15
-          ? 'pass'
-          : 'warning',
-      actualValue: `${(roomAreaM2 / allHoles.length).toFixed(1)} m²/port`,
-      limitValue: `≤ ${recommendedMaxAreaPerHoleM2} m²/port`,
-      notes: `Adjusted for ${params.airChangesPerHour} ACH airflow rate and room height of ${params.height}m.`,
+        roomAreaM2 / allHoles.length <= recommendedMaxAreaPerHoleM2 * 1.15 ? 'pass' : 'warning',
+      actualValue: `${(roomAreaM2 / allHoles.length).toFixed(1)} m\u00b2`,
+      limitValue: `\u2264 ${recommendedMaxAreaPerHoleM2} m\u00b2`,
+      noteKey: 'chk.coverage.note',
+      noteVars: { ach: params.airChangesPerHour, h: params.height },
     },
     {
       id: 'chk-pipe-length',
-      rule: 'Max Branch Pipe Length',
+      ruleKey: 'chk.pipeLength.rule',
       standardRef: 'NFPA 72 & Manufacturer Limit',
       status: maxBranchLengthM <= 100 ? 'pass' : 'warning',
       actualValue: `${maxBranchLengthM.toFixed(1)} m`,
-      limitValue: '≤ 100.0 m',
-      notes:
-        maxBranchLengthM <= 100
-          ? 'Single run within recommended 100m limit for 25mm pipe.'
-          : 'Exceeds recommended 100m single branch length.',
+      limitValue: '\u2264 100.0 m',
+      noteKey: maxBranchLengthM <= 100 ? 'chk.pipeLength.pass' : 'chk.pipeLength.warn',
     },
     {
       id: 'chk-flow-balance',
-      rule: 'Sampling Hole Flow Balance',
+      ruleKey: 'chk.balance.rule',
       standardRef: 'NFPA 72 Hydraulic Balance (VESDA/Securiton)',
       status: flowBalanceRatioPercent >= 70 ? 'pass' : 'warning',
       actualValue: `${flowBalanceRatioPercent}%`,
-      limitValue: '≥ 70%',
-      notes:
-        flowBalanceRatioPercent >= 70
-          ? 'Good flow balance distribution between closest and furthest hole.'
-          : 'Balance is under 70%. Hole diameter tapering applied to optimize balance.',
+      limitValue: '\u2265 70%',
+      noteKey: flowBalanceRatioPercent >= 70 ? 'chk.balance.pass' : 'chk.balance.warn',
     },
     {
       id: 'chk-end-pressure',
-      rule: 'End-of-Line Suction Pressure',
+      ruleKey: 'chk.pressure.rule',
       standardRef: 'NFPA 72 Sec. 17.7.3.6.5',
       status: suctionPressureEndHolePa >= 25 ? 'pass' : 'warning',
       actualValue: `${suctionPressureEndHolePa} Pa`,
-      limitValue: '≥ 25 Pa',
-      notes:
-        suctionPressureEndHolePa >= 25
-          ? 'Adequate vacuum pressure at the furthest sampling point.'
-          : 'Low pressure at end point. Consider increasing aspirator fan speed.',
+      limitValue: '\u2265 25 Pa',
+      noteKey: suctionPressureEndHolePa >= 25 ? 'chk.pressure.pass' : 'chk.pressure.warn',
     },
   ];
 
@@ -346,66 +338,70 @@ export function calculateASD(params: CalculationParams): CalculationResults {
     {
       itemCode: 'ASD-UNIT-01',
       category: 'detector',
-      description: `${params.detectorModel} - Aspirating Smoke Detection Unit with Display & Relays`,
+      descKey: 'bom.asdUnit.desc',
+      descVars: { model: params.detectorModel },
       quantity: 1,
-      unit: 'Unit',
-      remarks: `Selected for ${pipeCount}-pipe installation, ${params.sensitivityClass}`,
+      unitKey: 'unit.unit',
+      remarkKey: 'bom.asdUnit.remark',
+      remarkVars: { n: pipeCount, class: params.sensitivityClass },
     },
     {
       itemCode: 'PIP-CPVC-25',
       category: 'pipe',
-      description: `${params.pipeMaterial}, 25mm (3/4" IPS) Outer Diameter, 3-Meter Length`,
+      descKey: 'bom.pipe.desc',
+      descVars: { material: params.pipeMaterial },
       quantity: pipeSticks,
-      unit: 'Length (3m)',
-      remarks: `Total measured run: ${totalPipeLengthM.toFixed(1)}m + 10% cut allowance`,
+      unitKey: 'unit.stick',
+      remarkKey: 'bom.pipe.remark',
+      remarkVars: { len: totalPipeLengthM.toFixed(1) },
     },
     {
       itemCode: 'FIT-ELB-90',
       category: 'fittings',
-      description: '25mm CPVC 90° Sweep Elbow (Fire Safety Red)',
+      descKey: 'bom.elbow.desc',
       quantity: elbows90,
-      unit: 'Pcs',
-      remarks: 'Sweep bend for minimal airflow pressure loss',
+      unitKey: 'unit.pcs',
+      remarkKey: 'bom.elbow.remark',
     },
     {
       itemCode: 'FIT-TEE-25',
       category: 'fittings',
-      description: '25mm CPVC Equal Tee (Fire Safety Red)',
+      descKey: 'bom.tee.desc',
       quantity: tees,
-      unit: 'Pcs',
-      remarks: 'Header manifold splitting',
+      unitKey: 'unit.pcs',
+      remarkKey: 'bom.tee.remark',
     },
     {
       itemCode: 'FIT-CAP-25',
       category: 'fittings',
-      description: '25mm CPVC End Cap with calibrated sampling orifice',
+      descKey: 'bom.cap.desc',
       quantity: endCaps,
-      unit: 'Pcs',
-      remarks: 'Fitted at terminus of each pipe run',
+      unitKey: 'unit.pcs',
+      remarkKey: 'bom.cap.remark',
     },
     {
       itemCode: 'FIT-CPL-25',
       category: 'fittings',
-      description: '25mm CPVC Socket Coupling',
+      descKey: 'bom.coupling.desc',
       quantity: couplings,
-      unit: 'Pcs',
-      remarks: 'Pipe stick straight connection',
+      unitKey: 'unit.pcs',
+      remarkKey: 'bom.coupling.remark',
     },
     {
       itemCode: 'HRD-CLP-25',
       category: 'hardware',
-      description: '25mm Heavy-Duty Pipe Clip / Hanger with Rubber Acoustic Liner',
+      descKey: 'bom.clip.desc',
       quantity: pipeClips,
-      unit: 'Pcs',
-      remarks: 'Spaced every 1.5m along pipe run per NFPA 72',
+      unitKey: 'unit.pcs',
+      remarkKey: 'bom.clip.remark',
     },
     {
       itemCode: 'LBL-SAM-01',
       category: 'accessories',
-      description: 'Sampling Point Identification Wrap Label & Flow Direction Arrow Decal',
+      descKey: 'bom.label.desc',
       quantity: allHoles.length,
-      unit: 'Pcs',
-      remarks: 'High-visibility reflective fire alarm label',
+      unitKey: 'unit.pcs',
+      remarkKey: 'bom.label.remark',
     },
   ];
 
@@ -413,20 +409,21 @@ export function calculateASD(params: CalculationParams): CalculationResults {
     billOfMaterials.push({
       itemCode: 'CAP-KIT-01',
       category: 'accessories',
-      description: `Capillary Tube Drop Kit with Ceiling Rose & Sample Point (${params.capillaryTubeLength}m flexible tubing)`,
+      descKey: 'bom.capillary.desc',
+      descVars: { len: params.capillaryTubeLength },
       quantity: allHoles.length,
-      unit: 'Set',
-      remarks: 'For concealed sampling through suspended acoustic ceiling',
+      unitKey: 'unit.set',
+      remarkKey: 'bom.capillary.remark',
     });
   }
 
   billOfMaterials.push({
     itemCode: 'VAL-TST-01',
     category: 'accessories',
-    description: 'End-of-Line Test & Purge Ball Valve Assembly with Quick-Disconnect Port',
+    descKey: 'bom.testValve.desc',
     quantity: pipeCount,
-    unit: 'Set',
-    remarks: 'For annual smoke transport verification test',
+    unitKey: 'unit.set',
+    remarkKey: 'bom.testValve.remark',
   });
 
   return {
