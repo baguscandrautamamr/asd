@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   GitBranch,
   Gauge,
+  Lightbulb,
   Search,
   XCircle,
 } from 'lucide-react';
@@ -239,8 +240,17 @@ export const ComplianceMatrixTab: React.FC<ComplianceMatrixTabProps> = ({ result
                       </span>
                     )}
                   </td>
-                  <td className="py-2.5 px-3 text-ink-3 text-[11px]">
+                  <td className="py-2.5 px-3 text-ink-3 text-2xs max-w-sm">
                     {t(check.noteKey, check.noteVars)}
+                    {check.adviceKey && (
+                      <span className="mt-1.5 flex items-start gap-1.5 rounded-md bg-brand-wash border border-brand/25 px-2 py-1.5 text-ink-2">
+                        <Lightbulb className="w-3 h-3 text-brand shrink-0 mt-0.5" />
+                        <span>
+                          <strong className="font-bold text-brand-ink">{t('comp.advice')}: </strong>
+                          {t(check.adviceKey, check.adviceVars)}
+                        </span>
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

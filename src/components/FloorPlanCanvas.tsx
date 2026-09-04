@@ -7,13 +7,20 @@ import React, {
   useCallback,
   useEffect,
 } from 'react';
-import { CalculationParams, CalculationResults, HoleScheduleItem, Point2D } from '../types';
+import {
+  CalculationParams,
+  CalculationResults,
+  HoleScheduleItem,
+  Point2D,
+  WallLocation,
+} from '../types';
 import {
   Check,
   Eye,
   Info,
   Layers,
   Maximize2,
+  Move,
   PenLine,
   RotateCcw,
   Server,
@@ -24,7 +31,8 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
-import { materialKey } from '../i18n/labels';
+import { materialKey, wallKey } from '../i18n/labels';
+import { detectorPosition } from '../utils/detectorPosition';
 
 export interface FloorPlanCanvasRef {
   getCanvasImageBase64: () => Promise<string | undefined>;
@@ -71,6 +79,14 @@ interface PlanPalette {
   draft: string;
   draftWash: string;
 }
+
+/**
+ * A colour per branch. Two runs can legitimately sit on top of each other, and
+ * a single red made them look like one pipe that had swallowed the other.
+ */
+const BRANCH_COLORS = ['#d5352f', '#1d6fa5', '#a15c07', '#7a3fa8'];
+
+const branchColor = (index: number) => BRANCH_COLORS[index % BRANCH_COLORS.length];
 
 /** Vertices land on a 250 mm grid, the practical tolerance for setting out
  *  pipe against a ceiling grid. */
@@ -144,6 +160,10 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
     const [drawBranch, setDrawBranch] = useState<number | null>(null);
     const [draft, setDraft] = useState<Point2D[]>([]);
     const [cursor, setCursor] = useState<Point2D | null>(null);
+    const [draggingDetector, setDraggingDetector] = useState(false);
+    // The pointer emits moves faster than React re-renders, so the drag flag
+    // has to be readable synchronously or most of the movement is dropped.
+    const draggingRef = useRef(false);
 
     const svgRef = useRef<SVGSVGElement>(null);
     const isDrawing = drawBranch !== null;
@@ -209,6 +229,16 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
       setCursor(null);
     }, []);
 
+    const updateBranch = useCallback(
+      (index: number, patch: { portsEnabled?: boolean; holeSpacingM?: number }) => {
+        if (!onUpdateParams) return;
+        const settings = { ...(params.branchSettings ?? {}) };
+        settings[String(index)] = { ...settings[String(index)], ...patch };
+        onUpdateParams({ branchSettings: settings });
+      },
+      [onUpdateParams, params.branchSettings]
+    );
+
     const clearRoute = useCallback(
       (index: number) => {
         if (!onUpdateParams) return;
@@ -260,12 +290,18 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
     );
 
     const handlePlanMove = (event: React.MouseEvent) => {
+      if (draggingRef.current) {
+        const point = toRoom(event);
+        if (point) placeDetector(point);
+        return;
+      }
       if (!isDrawing) return;
       const point = toRoom(event);
       if (point) setCursor(orthogonalTo(draft[draft.length - 1], point));
     };
 
     const handlePlanClick = (event: React.MouseEvent) => {
+      if (draggingRef.current) return;
       if (!isDrawing) return;
       const point = toRoom(event);
       if (!point) return;
@@ -280,34 +316,69 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
       if (isDrawing && draft.length >= 2) commitDraft(draft);
     };
 
-    // ASD unit placement on its mounting wall.
-    const detOffset = Math.max(
-      0.1,
-      Math.min(0.9, params.detectorLocation?.positionOffsetRatio ?? 0.5)
-    );
-    let detX = 0.2;
-    let detY = params.width * detOffset;
-    let detAngle = 90;
+    /**
+     * Dropping the unit near a wall snaps it back onto that wall (how these
+     * panels are actually mounted); dropped further in, it keeps the free spot.
+     */
+    const placeDetector = useCallback(
+      (point: Point2D) => {
+        if (!onUpdateParams) return;
+        const SNAP_TO_WALL_M = 1.2;
+        const distances: [WallLocation, number][] = [
+          ['west', point.x],
+          ['east', params.length - point.x],
+          ['north', point.y],
+          ['south', params.width - point.y],
+        ];
+        const [nearestWall, nearestDistance] = distances.reduce((a, b) => (a[1] <= b[1] ? a : b));
 
-    switch (params.detectorLocation?.wall || 'west') {
-      case 'north':
-        detX = params.length * detOffset;
-        detY = 0.2;
-        detAngle = 180;
-        break;
-      case 'south':
-        detX = params.length * detOffset;
-        detY = params.width - 0.2;
-        detAngle = 0;
-        break;
-      case 'east':
-        detX = params.length - 0.2;
-        detY = params.width * detOffset;
-        detAngle = 270;
-        break;
-      default:
-        break;
-    }
+        if (nearestDistance <= SNAP_TO_WALL_M) {
+          const ratio =
+            nearestWall === 'west' || nearestWall === 'east'
+              ? point.y / Math.max(0.1, params.width)
+              : point.x / Math.max(0.1, params.length);
+          onUpdateParams({
+            detectorLocation: {
+              ...params.detectorLocation,
+              wall: nearestWall,
+              positionOffsetRatio: Math.min(0.9, Math.max(0.1, Math.round(ratio * 100) / 100)),
+              freePosition: null,
+            },
+          });
+        } else {
+          onUpdateParams({
+            detectorLocation: { ...params.detectorLocation, freePosition: point },
+          });
+        }
+      },
+      [onUpdateParams, params.detectorLocation, params.length, params.width]
+    );
+
+    const handleDetectorDown = (event: React.MouseEvent) => {
+      if (!onUpdateParams || isDrawing) return;
+      event.stopPropagation();
+      // Without this the drag paints a text selection across the whole page.
+      event.preventDefault();
+      draggingRef.current = true;
+      setDraggingDetector(true);
+    };
+
+    const endDetectorDrag = useCallback(() => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      setDraggingDetector(false);
+    }, []);
+
+    // Releasing the button anywhere must end the drag, not just over the plan.
+    useEffect(() => {
+      window.addEventListener('mouseup', endDetectorDrag);
+      return () => window.removeEventListener('mouseup', endDetectorDrag);
+    }, [endDetectorDrag]);
+
+    const detector = detectorPosition(params);
+    const detX = detector.x;
+    const detY = detector.y;
+    const detAngle = detector.angleDeg;
 
     const racks = useMemo(() => {
       if (!showRacks || (params.roomType !== 'data_center' && params.roomType !== 'telecom')) {
@@ -537,6 +608,7 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
               }`}
               style={{ background: palette.page }}
               onMouseMove={handlePlanMove}
+              onMouseUp={endDetectorDrag}
               onClick={handlePlanClick}
               onDoubleClick={handlePlanDoubleClick}
             >
@@ -726,10 +798,10 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
                         y1={toSvgY(seg.from.y)}
                         x2={toSvgX(seg.to.x)}
                         y2={toSvgY(seg.to.y)}
-                        stroke={palette.pipeGlow}
-                        strokeWidth="0.28"
+                        stroke={branchColor(branch.pipeIndex)}
+                        strokeWidth="0.26"
                         strokeLinecap="round"
-                        filter="url(#pipe-glow)"
+                        opacity="0.25"
                       />
                     ))}
 
@@ -740,9 +812,10 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
                         y1={toSvgY(seg.from.y)}
                         x2={toSvgX(seg.to.x)}
                         y2={toSvgY(seg.to.y)}
-                        stroke={palette.pipe}
+                        stroke={branchColor(branch.pipeIndex)}
                         strokeWidth="0.14"
                         strokeLinecap="round"
+                        strokeDasharray={branch.portsEnabled ? undefined : '0.45, 0.3'}
                       />
                     ))}
 
@@ -767,7 +840,7 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
                       cx={toSvgX(branch.endPoint.x)}
                       cy={toSvgY(branch.endPoint.y)}
                       r="0.2"
-                      fill={palette.endCap}
+                      fill={branchColor(branch.pipeIndex)}
                       stroke={palette.endCapStroke}
                       strokeWidth="0.05"
                     />
@@ -778,7 +851,7 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
                       fontSize="0.32"
                       fontWeight="bold"
                       fontFamily="JetBrains Mono, monospace"
-                      fill={palette.branchText}
+                      fill={branchColor(branch.pipeIndex)}
                     >
                       {t('plan.endCap')}
                     </text>
@@ -787,13 +860,14 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
                       x={toSvgX(
                         branch.startPoint.x + (branch.endPoint.x - branch.startPoint.x) * 0.15
                       )}
-                      y={toSvgY(branch.startPoint.y) - 0.95}
+                      y={toSvgY(branch.startPoint.y) - 0.95 - branch.pipeIndex * 0.45}
                       fontSize="0.35"
                       fontWeight="bold"
                       fontFamily="JetBrains Mono, monospace"
-                      fill={palette.branchText}
+                      fill={branchColor(branch.pipeIndex)}
                     >
                       {branch.pipeName} ({n(branch.lengthMeters, 1)}m)
+                      {!branch.portsEnabled && ` · ${t('branch.noPorts')}`}
                     </text>
                   </g>
                 ))}
@@ -831,7 +905,7 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
                         cy={hy}
                         r={0.16 + (hole.diameterMm / 1000) * 15}
                         fill={isHovered ? palette.holeHover : palette.hole}
-                        stroke={palette.holeStroke}
+                        stroke={branchColor(hole.pipeIndex)}
                         strokeWidth="0.06"
                       />
 
@@ -879,7 +953,23 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
               <g
                 id="asd-detector-unit"
                 transform={`translate(${toSvgX(detX)}, ${toSvgY(detY)}) rotate(${detAngle})`}
+                onMouseDown={handleDetectorDown}
+                style={{ cursor: onUpdateParams && !isDrawing ? 'grab' : undefined }}
               >
+                <title>{t('detector.drag')}</title>
+                {draggingDetector && (
+                  <rect
+                    x="-1"
+                    y="-0.7"
+                    width="2"
+                    height="1.4"
+                    fill="none"
+                    stroke={palette.draft}
+                    strokeWidth="0.08"
+                    strokeDasharray="0.2, 0.15"
+                    rx="0.2"
+                  />
+                )}
                 <rect
                   x="-0.8"
                   y="-0.5"
@@ -1018,6 +1108,110 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
           </div>
         </div>
 
+        {/* Per-branch port control: which pipe carries ports, and how far
+            apart they sit on that pipe. */}
+        {onUpdateParams && (
+          <div id="branch-panel" className="border-t border-line bg-surface-2 px-3 py-2">
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+              <span className="text-2xs font-bold uppercase tracking-wide text-ink-2">
+                {t('branch.title')}
+              </span>
+              <span className="text-2xs text-ink-3 truncate">{t('branch.subtitle')}</span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {results.branches.map((branch) => {
+                const setting = params.branchSettings?.[String(branch.pipeIndex)];
+                const spacing = setting?.holeSpacingM ?? 0;
+                return (
+                  <div
+                    key={branch.pipeIndex}
+                    className="flex items-center gap-2 rounded-lg border border-line bg-surface px-2 py-1.5"
+                  >
+                    <span
+                      className="w-2.5 h-2.5 rounded-sm shrink-0"
+                      style={{ backgroundColor: branchColor(branch.pipeIndex) }}
+                    />
+                    <span className="text-2xs font-bold text-ink font-mono">
+                      {branch.pipeName.replace('Pipe ', '')}
+                    </span>
+
+                    <label
+                      className="flex items-center gap-1 cursor-pointer"
+                      title={branch.portsEnabled ? t('branch.portsOn') : t('branch.portsOff')}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={branch.portsEnabled}
+                        onChange={(e) =>
+                          updateBranch(branch.pipeIndex, { portsEnabled: e.target.checked })
+                        }
+                        className="w-3.5 h-3.5 rounded accent-brand"
+                      />
+                      <span className="text-2xs text-ink-2">{t('branch.ports')}</span>
+                    </label>
+
+                    <label className="flex items-center gap-1" title={t('branch.spacingHint')}>
+                      <span className="text-2xs text-ink-3">{t('branch.spacing')}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        step={0.5}
+                        value={spacing}
+                        disabled={!branch.portsEnabled}
+                        onChange={(e) =>
+                          updateBranch(branch.pipeIndex, {
+                            holeSpacingM: Math.min(20, Math.max(0, parseFloat(e.target.value) || 0)),
+                          })
+                        }
+                        className="field w-14 px-1 py-0.5 text-2xs text-center font-mono"
+                      />
+                    </label>
+
+                    <span className="text-2xs text-ink-3 font-mono whitespace-nowrap">
+                      {branch.portsEnabled
+                        ? t('branch.summary', {
+                            holes: branch.holeCount,
+                            length: n(branch.lengthMeters, 1),
+                          })
+                        : t('branch.noPorts')}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDrawBranch(branch.pipeIndex);
+                        setDraft([]);
+                        setCursor(null);
+                      }}
+                      title={t('branch.draw')}
+                      className={`p-1 rounded transition-colors ${
+                        drawBranch === branch.pipeIndex
+                          ? 'bg-brand text-white'
+                          : 'text-ink-3 hover:text-ink hover:bg-surface-3'
+                      }`}
+                    >
+                      <PenLine className="w-3 h-3" />
+                    </button>
+
+                    {branch.isCustomRoute && (
+                      <button
+                        type="button"
+                        onClick={() => clearRoute(branch.pipeIndex)}
+                        title={t('branch.resetRoute')}
+                        className="p-1 rounded text-brand-ink hover:bg-surface-3 transition-colors"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Inspection bar */}
         <div className="glass px-4 py-2.5 border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs">
           {hoveredHole ? (
@@ -1078,6 +1272,14 @@ export const FloorPlanCanvas = forwardRef<FloorPlanCanvasRef, FloorPlanCanvasPro
               <span className="w-2 h-2 rounded-full bg-brand/20 border border-brand/40" />
               {t('plan.legendCoverage')}
             </span>
+            {onUpdateParams && (
+              <span className="flex items-center gap-1">
+                <Move className="w-3 h-3" />
+                {detector.isFree
+                  ? t('detector.free')
+                  : t('detector.snapped', { wall: t(wallKey[params.detectorLocation.wall]) })}
+              </span>
+            )}
             {results.branches.some((branch) => branch.isCustomRoute) && (
               <span className="flex items-center gap-1 text-brand-ink font-semibold">
                 <PenLine className="w-3 h-3" />

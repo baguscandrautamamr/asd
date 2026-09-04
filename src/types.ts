@@ -35,6 +35,20 @@ export interface DetectorLocation {
   wall: WallLocation;
   positionOffsetRatio: number; // 0.0 to 1.0 along the wall
   heightFromFloor: number; // meters
+  /**
+   * Free placement in room coordinates, set by dragging the unit on the plan.
+   * Overrides wall + offset when present; cleared when the unit is dropped
+   * close enough to a wall to snap back onto it.
+   */
+  freePosition?: Point2D | null;
+}
+
+/** Per-branch overrides set from the 2D plan. */
+export interface BranchSetting {
+  /** False leaves the pipe in place but drills no sampling ports on it. */
+  portsEnabled?: boolean;
+  /** Port spacing for this branch only; 0 or absent follows the global value. */
+  holeSpacingM?: number;
 }
 
 export interface CalculationParams {
@@ -65,6 +79,8 @@ export interface CalculationParams {
    * automatic layout.
    */
   customRoutes?: Record<string, Point2D[]>;
+  /** Per-branch port switches and spacing, keyed by pipe index. */
+  branchSettings?: Record<string, BranchSetting>;
 }
 
 export interface HoleScheduleItem {
@@ -103,6 +119,10 @@ export interface PipeBranchData {
   runStartIndex: number;
   /** True when the operator drew this branch by hand. */
   isCustomRoute: boolean;
+  /** False when ports are switched off for this branch. */
+  portsEnabled: boolean;
+  /** Spacing actually used for this branch's ports. */
+  holeSpacingM: number;
   segments: { from: Point2D; to: Point2D }[];
   holes: HoleScheduleItem[];
 }
@@ -121,6 +141,12 @@ export interface ComplianceCheck {
   limitValue: string;
   noteKey: TranslationKey;
   noteVars?: Record<string, string | number>;
+  /**
+   * Concrete fix for a row that is not passing — the number to aim for, not
+   * just a statement that the limit was exceeded.
+   */
+  adviceKey?: TranslationKey;
+  adviceVars?: Record<string, string | number>;
 }
 
 export type BOMCategory = 'pipe' | 'fittings' | 'hardware' | 'accessories' | 'detector';

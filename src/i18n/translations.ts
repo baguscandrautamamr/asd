@@ -583,6 +583,38 @@ export const en = {
   'draw.custom': 'Hand-drawn route: {list}',
   'draw.routeAuto': 'Automatic route',
   'draw.routeManual': 'Hand-drawn route',
+
+  // --------------------------------------------------- advice on a warning
+  'comp.advice': 'Recommendation',
+  'chk.transport.advice':
+    'Keep the longest run at or below {run} m (now {current} m), raise the aspirator speed, or split the layout across {pipes} branches.',
+  'chk.coverage.advice':
+    'Reduce port spacing to {spacing} m, or raise the port count to at least {ports} (now {current}).',
+  'chk.pipeLength.advice':
+    'Split the run across {pipes} branches so each stays around {run} m.',
+  'chk.balance.advice':
+    'Open the weakest port (#{hole}) from ø{from} mm to about ø{to} mm, or narrow the taper at the far end — flow scales with orifice area, so that is the lever that moves balance.',
+  'chk.pressure.advice':
+    'At this aspirator speed the pipe can run about {run} m before dropping below 25 Pa; the longest run is {current} m. Shorten it or raise the fan speed.',
+
+  // ---------------------------------------------------- per-branch controls
+  'branch.title': 'Pipes & ports',
+  'branch.subtitle': 'Choose which pipe carries sampling ports and how far apart they sit.',
+  'branch.ports': 'Ports',
+  'branch.portsOn': 'Ports on this pipe',
+  'branch.portsOff': 'No ports on this pipe',
+  'branch.spacing': 'Spacing',
+  'branch.spacingAuto': 'auto',
+  'branch.spacingHint': '0 follows the global spacing',
+  'branch.routeAuto': 'auto',
+  'branch.routeManual': 'drawn',
+  'branch.draw': 'Draw this pipe',
+  'branch.resetRoute': 'Back to the automatic route',
+  'branch.summary': '{holes} ports · {length} m',
+  'branch.noPorts': 'pipe only',
+  'detector.drag': 'Drag the ASD unit to move it',
+  'detector.snapped': 'Snapped to the {wall}',
+  'detector.free': 'Free position',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -1167,6 +1199,38 @@ export const id: Record<TranslationKey, string> = {
   'draw.custom': 'Rute manual: {list}',
   'draw.routeAuto': 'Rute otomatis',
   'draw.routeManual': 'Rute manual',
+
+  // --------------------------------------------------- advice on a warning
+  'comp.advice': 'Rekomendasi',
+  'chk.transport.advice':
+    'Jaga run terpanjang maksimal {run} m (sekarang {current} m), naikkan kecepatan aspirator, atau pecah layout menjadi {pipes} cabang.',
+  'chk.coverage.advice':
+    'Rapatkan jarak antar titik ke {spacing} m, atau tambah jumlah titik menjadi minimal {ports} (sekarang {current}).',
+  'chk.pipeLength.advice':
+    'Pecah jalur menjadi {pipes} cabang supaya masing-masing sekitar {run} m.',
+  'chk.balance.advice':
+    'Perbesar orifice titik terlemah (#{hole}) dari ø{from} mm ke sekitar ø{to} mm, atau persempit rentang penyempitan di ujung jauh — aliran sebanding dengan luas orifice, jadi di situlah pengungkitnya.',
+  'chk.pressure.advice':
+    'Pada kecepatan aspirator ini pipa sanggup sekitar {run} m sebelum turun di bawah 25 Pa; run terpanjang sekarang {current} m. Perpendek atau naikkan kecepatan kipas.',
+
+  // ---------------------------------------------------- per-branch controls
+  'branch.title': 'Pipa & titik sampling',
+  'branch.subtitle': 'Pilih pipa mana yang diberi titik sampling dan berapa jaraknya.',
+  'branch.ports': 'Titik',
+  'branch.portsOn': 'Pipa ini diberi titik sampling',
+  'branch.portsOff': 'Pipa ini tanpa titik sampling',
+  'branch.spacing': 'Jarak',
+  'branch.spacingAuto': 'auto',
+  'branch.spacingHint': '0 mengikuti jarak global',
+  'branch.routeAuto': 'otomatis',
+  'branch.routeManual': 'digambar',
+  'branch.draw': 'Gambar pipa ini',
+  'branch.resetRoute': 'Kembali ke rute otomatis',
+  'branch.summary': '{holes} titik · {length} m',
+  'branch.noPorts': 'pipa saja',
+  'detector.drag': 'Seret unit ASD untuk memindahkan',
+  'detector.snapped': 'Menempel ke {wall}',
+  'detector.free': 'Posisi bebas',
 };
 
 export const dictionaries = { en, id } as const;

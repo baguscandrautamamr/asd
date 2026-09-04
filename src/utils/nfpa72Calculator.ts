@@ -1,3 +1,4 @@
+import { detectorPosition } from './detectorPosition';
 import {
   CalculationParams,
   CalculationResults,
@@ -220,31 +221,12 @@ export function calculateASD(params: CalculationParams): CalculationResults {
     noteVars: { max: num(maxLinearSpacingM, 1) },
   });
 
-  // 4. Calculate detector coordinates
-  // Wall positions in room coordinates (x: 0..length, y: 0..width)
-  let detX = 0;
-  let detY = 0;
-  const offset = Math.max(0.1, Math.min(0.9, params.detectorLocation?.positionOffsetRatio ?? 0.5));
-
-  switch (params.detectorLocation?.wall || 'west') {
-    case 'north':
-      detX = params.length * offset;
-      detY = 0.4;
-      break;
-    case 'south':
-      detX = params.length * offset;
-      detY = params.width - 0.4;
-      break;
-    case 'east':
-      detX = params.length - 0.4;
-      detY = params.width * offset;
-      break;
-    case 'west':
-    default:
-      detX = 0.4;
-      detY = params.width * offset;
-      break;
-  }
+  // 4. Detector coordinates come from the shared placement helper, so the
+  // plan, the model and this schedule can never disagree about where the unit
+  // is — including when it has been dragged off its wall.
+  const detector = detectorPosition(params);
+  const detX = detector.x;
+  const detY = detector.y;
 
   // 5. Generate Pipe Branches and Sampling Hole Positions
   const branches: PipeBranchData[] = [];
@@ -284,6 +266,13 @@ export function calculateASD(params: CalculationParams): CalculationResults {
 
     // A hand-drawn run replaces the automatic one; the manifold back to the
     // detector is still routed for the operator.
+    const setting = params.branchSettings?.[String(pIdx)];
+    const portsEnabled = setting?.portsEnabled !== false;
+    const branchHoleSpacingM =
+      setting?.holeSpacingM && setting.holeSpacingM > 0
+        ? setting.holeSpacingM
+        : effectiveHoleSpacingM;
+
     const drawn = params.customRoutes?.[String(pIdx)];
     const isCustomRoute = Array.isArray(drawn) && drawn.length >= 2;
 
@@ -330,8 +319,10 @@ export function calculateASD(params: CalculationParams): CalculationResults {
 
     // Calculate holes for this pipe branch
     const holesOnBranch: HoleScheduleItem[] = [];
-    const holeStep = effectiveHoleSpacingM;
-    const holeCount = Math.max(2, Math.floor(branchLinearRunM / holeStep) + 1);
+    const holeStep = branchHoleSpacingM;
+    // A branch with ports switched off still carries pipe, just no holes.
+    const holeCount = portsEnabled ? Math.max(2, Math.floor(branchLinearRunM / holeStep) + 1) : 0;
+    const branchCoverageRadiusM = Math.round((branchHoleSpacingM / Math.SQRT2) * 100) / 100;
 
     for (let hIdx = 0; hIdx < holeCount; hIdx++) {
       const frac = holeCount > 1 ? hIdx / (holeCount - 1) : 0.5;
@@ -384,7 +375,7 @@ export function calculateASD(params: CalculationParams): CalculationResults {
         diameterMm,
         estimatedFlowRateLpm: flowRateLpm,
         suctionPressurePa: pressureAtHole,
-        coverageRadiusM,
+        coverageRadiusM: branchCoverageRadiusM,
       };
 
       holesOnBranch.push(holeItem);
@@ -406,6 +397,8 @@ export function calculateASD(params: CalculationParams): CalculationResults {
       routePoints,
       runStartIndex,
       isCustomRoute,
+      portsEnabled,
+      holeSpacingM: branchHoleSpacingM,
       segments,
       holes: holesOnBranch,
     });
@@ -482,17 +475,24 @@ export function calculateASD(params: CalculationParams): CalculationResults {
   }
 
   // 7. Hydraulic Flow Balance Ratio
+  // Ports can be switched off branch by branch, so the design may legitimately
+  // contain no holes at all; every statistic below has to survive that.
   const flows = allHoles.map((h) => h.estimatedFlowRateLpm);
-  const minFlow = Math.min(...flows);
-  const maxFlow = Math.max(...flows);
+  const minFlow = flows.length > 0 ? Math.min(...flows) : 0;
+  const maxFlow = flows.length > 0 ? Math.max(...flows) : 0;
   const flowBalanceRatioPercent =
     maxFlow > 0 ? Math.round((minFlow / maxFlow) * 1000) / 10 : 100;
 
   // Pressure at furthest end hole
-  const furthestHole = allHoles.reduce((prev, curr) =>
-    curr.distanceAlongPipe > prev.distanceAlongPipe ? curr : prev
-  );
-  const suctionPressureEndHolePa = furthestHole ? furthestHole.suctionPressurePa : 35;
+  const basePressurePa =
+    params.aspiratorSpeed === 'high' ? 420 : params.aspiratorSpeed === 'medium' ? 300 : 200;
+  const furthestHole =
+    allHoles.length > 0
+      ? allHoles.reduce((prev, curr) =>
+          curr.distanceAlongPipe > prev.distanceAlongPipe ? curr : prev
+        )
+      : null;
+  const suctionPressureEndHolePa = furthestHole ? furthestHole.suctionPressurePa : basePressurePa;
   step({
     id: 'calc-pressure',
     group: 'hydraulic',
@@ -512,7 +512,7 @@ export function calculateASD(params: CalculationParams): CalculationResults {
     titleKey: 'calc.flow.title',
     formula: 'Q = Cd \u00d7 A \u00d7 \u221a(2\u0394P / \u03c1)',
     substitution: `Q = 0.62 \u00d7 A \u00d7 \u221a(2 \u00d7 \u0394P / 1.2)`,
-    result: `${num(Math.min(...flows), 1)} - ${num(Math.max(...flows), 1)} L/min`,
+    result: `${num(minFlow, 1)} - ${num(maxFlow, 1)} L/min`,
     noteKey: 'calc.flow.note',
   });
 
@@ -521,7 +521,7 @@ export function calculateASD(params: CalculationParams): CalculationResults {
     group: 'hydraulic',
     titleKey: 'calc.balance.title',
     formula: 'B = Q_min / Q_max \u00d7 100%',
-    substitution: `B = ${num(Math.min(...flows), 1)} / ${num(Math.max(...flows), 1)} \u00d7 100%`,
+    substitution: `B = ${num(minFlow, 1)} / ${num(maxFlow, 1)} \u00d7 100%`,
     result: `${num(flowBalanceRatioPercent, 1)}%`,
     noteKey: 'calc.balance.note',
   });
@@ -562,6 +562,40 @@ export function calculateASD(params: CalculationParams): CalculationResults {
     transportTimeRating = 'Non-Compliant';
   }
 
+  const areaPerPortM2 = allHoles.length > 0 ? roomAreaM2 / allHoles.length : 0;
+
+  // ---- Concrete targets quoted by the advice on a failing row ----------------
+  // Coverage: the spacing and port count that would bring the design inside the
+  // allowable area per port.
+  const advisedHoleSpacingM = Math.max(
+    1,
+    Math.floor(Math.sqrt(recommendedMaxAreaPerHoleM2) * 10) / 10
+  );
+  const advisedPortCount = Math.ceil(roomAreaM2 / Math.max(0.1, recommendedMaxAreaPerHoleM2));
+
+  // Balance: flow scales with orifice area, so the weakest port needs its
+  // diameter opened by sqrt(target / actual) to reach the 70% rule.
+  const balanceTarget = 0.7;
+  const weakestHole =
+    allHoles.length > 0
+      ? allHoles.reduce((prev, curr) =>
+          curr.estimatedFlowRateLpm < prev.estimatedFlowRateLpm ? curr : prev
+        )
+      : null;
+  const advisedMinOrificeMm =
+    weakestHole && maxFlow > 0
+      ? Math.round(
+          weakestHole.diameterMm * Math.sqrt((balanceTarget * maxFlow) / weakestHole.estimatedFlowRateLpm) * 10
+        ) / 10
+      : 0;
+
+  // Transport: the longest run the current air speed can still clear in time.
+  const advisedMaxRunM =
+    Math.round(Math.max(0, (maxAllowedTransportTimeSec - entryDelaySec) * airSpeed) * 10) / 10;
+
+  // End pressure: how far the aspirator can push before dropping below 25 Pa.
+  const advisedPressureRunM = Math.round(((basePressurePa - 25) / 3.8) * 10) / 10;
+
   // 8. NFPA 72 Compliance Checks.
   // Rows carry translation keys instead of prose so the same result object can
   // be rendered in Bahasa Indonesia or English without recalculating.
@@ -577,17 +611,30 @@ export function calculateASD(params: CalculationParams): CalculationResults {
         estimatedTransportTimeSec <= maxAllowedTransportTimeSec
           ? 'chk.transport.pass'
           : 'chk.transport.fail',
+      adviceKey:
+        estimatedTransportTimeSec <= maxAllowedTransportTimeSec ? undefined : 'chk.transport.advice',
+      adviceVars: {
+        run: advisedMaxRunM,
+        current: maxBranchLengthM.toFixed(1),
+        pipes: Math.min(4, pipeCount + 1),
+      },
     },
     {
       id: 'chk-coverage',
       ruleKey: 'chk.coverage.rule',
       standardRef: 'NFPA 72 Sec. 17.7.3.6.3 & 17.7.6.3',
-      status:
-        roomAreaM2 / allHoles.length <= recommendedMaxAreaPerHoleM2 * 1.15 ? 'pass' : 'warning',
-      actualValue: `${(roomAreaM2 / allHoles.length).toFixed(1)} m\u00b2`,
+      status: areaPerPortM2 <= recommendedMaxAreaPerHoleM2 * 1.15 ? 'pass' : 'warning',
+      actualValue: `${areaPerPortM2.toFixed(1)} m\u00b2`,
       limitValue: `\u2264 ${recommendedMaxAreaPerHoleM2} m\u00b2`,
       noteKey: 'chk.coverage.note',
       noteVars: { ach: params.airChangesPerHour, h: params.height },
+      adviceKey:
+        areaPerPortM2 <= recommendedMaxAreaPerHoleM2 * 1.15 ? undefined : 'chk.coverage.advice',
+      adviceVars: {
+        spacing: advisedHoleSpacingM,
+        ports: advisedPortCount,
+        current: allHoles.length,
+      },
     },
     {
       id: 'chk-pipe-length',
@@ -597,6 +644,11 @@ export function calculateASD(params: CalculationParams): CalculationResults {
       actualValue: `${maxBranchLengthM.toFixed(1)} m`,
       limitValue: '\u2264 100.0 m',
       noteKey: maxBranchLengthM <= 100 ? 'chk.pipeLength.pass' : 'chk.pipeLength.warn',
+      adviceKey: maxBranchLengthM <= 100 ? undefined : 'chk.pipeLength.advice',
+      adviceVars: {
+        pipes: Math.min(4, pipeCount + 1),
+        run: Math.round((maxBranchLengthM / Math.min(4, pipeCount + 1)) * 10) / 10,
+      },
     },
     {
       id: 'chk-flow-balance',
@@ -606,6 +658,12 @@ export function calculateASD(params: CalculationParams): CalculationResults {
       actualValue: `${flowBalanceRatioPercent}%`,
       limitValue: '\u2265 70%',
       noteKey: flowBalanceRatioPercent >= 70 ? 'chk.balance.pass' : 'chk.balance.warn',
+      adviceKey: flowBalanceRatioPercent >= 70 ? undefined : 'chk.balance.advice',
+      adviceVars: {
+        from: weakestHole ? weakestHole.diameterMm.toFixed(1) : '-',
+        to: advisedMinOrificeMm.toFixed(1),
+        hole: weakestHole ? weakestHole.holeNumber : '-',
+      },
     },
     {
       id: 'chk-end-pressure',
@@ -615,6 +673,11 @@ export function calculateASD(params: CalculationParams): CalculationResults {
       actualValue: `${suctionPressureEndHolePa} Pa`,
       limitValue: '\u2265 25 Pa',
       noteKey: suctionPressureEndHolePa >= 25 ? 'chk.pressure.pass' : 'chk.pressure.warn',
+      adviceKey: suctionPressureEndHolePa >= 25 ? undefined : 'chk.pressure.advice',
+      adviceVars: {
+        run: advisedPressureRunM,
+        current: maxBranchLengthM.toFixed(1),
+      },
     },
   ];
 

@@ -368,6 +368,9 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
               updateField('detectorLocation', {
                 ...params.detectorLocation,
                 wall: v as WallLocation,
+                // Picking a wall here overrides a unit that was dragged loose
+                // on the plan, otherwise the dropdown would lie about where it is.
+                freePosition: null,
               })
             }
           >
