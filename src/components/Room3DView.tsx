@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { CalculationParams, CalculationResults, HoleScheduleItem } from '../types';
 import { useI18n } from '../context/I18nContext';
+import { detectorPosition } from '../utils/detectorPosition';
 
 export interface Room3DViewRef {
   /** PNG snapshot of the current viewport, used by the PDF report. */
@@ -230,22 +231,6 @@ function buildRoomGrid(
     geometry,
     new THREE.LineBasicMaterial({ color, transparent: true, opacity })
   );
-}
-
-/** Detector coordinates in room space — mirrors the calculator's placement. */
-function detectorPosition(params: CalculationParams) {
-  const offset = Math.max(0.1, Math.min(0.9, params.detectorLocation?.positionOffsetRatio ?? 0.5));
-  switch (params.detectorLocation?.wall || 'west') {
-    case 'north':
-      return { x: params.length * offset, y: 0.4, rotation: 0 };
-    case 'south':
-      return { x: params.length * offset, y: params.width - 0.4, rotation: Math.PI };
-    case 'east':
-      return { x: params.length - 0.4, y: params.width * offset, rotation: -Math.PI / 2 };
-    case 'west':
-    default:
-      return { x: 0.4, y: params.width * offset, rotation: Math.PI / 2 };
-  }
 }
 
 interface FlowTrack {
@@ -648,6 +633,7 @@ export const Room3DView = forwardRef<Room3DViewRef, Room3DViewProps>(
       });
 
       const detector = detectorPosition(params);
+      const detectorRotation = (detector.angleDeg * Math.PI) / 180;
       const detectorHeight = Math.min(
         height - 0.4,
         Math.max(0.8, params.detectorLocation?.heightFromFloor ?? 1.5)
@@ -820,7 +806,7 @@ export const Room3DView = forwardRef<Room3DViewRef, Room3DViewProps>(
       asd.add(bargraph);
 
       asd.position.copy(v(detector.x, detector.y, detectorHeight));
-      asd.rotation.y = detector.rotation;
+      asd.rotation.y = detectorRotation;
       model.add(asd);
 
       const asdLabel = makeLabelSprite(t('plan.asdUnit'), palette.label, 0.85);

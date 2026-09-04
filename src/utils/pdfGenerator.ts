@@ -307,9 +307,21 @@ export function generateTechnicalReportPDF(
   y += 6;
 
   results.complianceChecks.forEach((check, index) => {
+    // A failing row carries its fix on a second line, so the printed report
+    // tells the client what to change rather than only what is wrong.
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'italic');
+    const advice: string[] = check.adviceKey
+      ? doc.splitTextToSize(
+          pdfSafe(`${t('comp.advice')}: ${t(check.adviceKey, check.adviceVars)}`),
+          contentWidth - 8
+        )
+      : [];
+    const rowHeight = 6.5 + advice.length * 3;
+
     const shade = index % 2 === 0 ? 255 : 248;
     doc.setFillColor(shade, shade, shade === 255 ? 255 : 252);
-    doc.rect(margin, y, contentWidth, 6.5, 'F');
+    doc.rect(margin, y, contentWidth, rowHeight, 'F');
 
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
@@ -338,7 +350,14 @@ export function generateTechnicalReportPDF(
       write(t('comp.fail'), margin + 152, y + 4.5);
     }
 
-    y += 6.5;
+    if (advice.length > 0) {
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(79, 130, 33);
+      advice.forEach((line, lineIndex) => doc.text(line, margin + 5, y + 8.5 + lineIndex * 3));
+    }
+
+    y += rowHeight;
   });
 
   // ============================== PAGE 2 ==============================
